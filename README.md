@@ -1,8 +1,12 @@
 # Skimrr
 
-Nettoyer une bibliothèque de photos avant tout autre tri. Skimrr fait deux choses :
-repérer les **doublons** (exacts et quasi-identiques) et repérer les **photos floues**.
-Rien d'autre.
+Repère les doublons et les photos floues dans une bibliothèque, entièrement en local.
+Deux détections, pas dix : le reste du tri reste au photographe. Application native
+(Tauri 2, cœur en Rust), pour macOS et Windows, traduite en six langues, avec une
+révision par modèle de vision embarqué et une suite de tests automatisés sur tout le
+pipeline de détection.
+
+[skimrr.com](https://skimrr.com) · [Télécharger](https://skimrr.com/download) · macOS · Windows
 
 **100 % local.** Aucune photo, aucune métadonnée ne quitte la machine. Pas de compte,
 aucune télémétrie. L'application ne demande l'accès qu'au dossier que vous choisissez.
@@ -70,6 +74,10 @@ cargo test             # (dans src-tauri/) tests du backend
 npm run tauri build    # génère le paquet de distribution
 ```
 
+Le pipeline de détection (hachage, empreinte perceptuelle, score de netteté,
+appariement raw/JPEG) est couvert par une suite de tests automatisés qui tourne avant
+chaque publication.
+
 ## Stack
 
 Tauri 2 + React + TypeScript. Le backend Rust fait le scan, le hachage et l'analyse
@@ -122,3 +130,9 @@ redressé : deux orientations donnent deux empreintes sans rapport.
   quadratique ; au-delà de quelques dizaines de milliers de photos, un index dédié
   deviendra nécessaire.
 - **Linux** : le rendu WebKitGTK n'a pas encore été testé.
+
+## Licence
+
+Code source visible à titre de transparence, tous droits réservés : pas de
+réutilisation, modification ou redistribution sans accord. Pour utiliser Skimrr,
+[téléchargez l'application](https://skimrr.com/download).
