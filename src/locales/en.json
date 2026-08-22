@@ -1,0 +1,230 @@
+{
+  "tagline": "Duplicates and blurry shots, spotted locally. Nothing else.",
+  "home": {
+    "choose": "Choose a folder to scan",
+    "drop": "or drag and drop a folder here",
+    "dropActive": "Drop to start scanning",
+    "privacy": "No account. Your photos never leave this computer."
+  },
+  "scan": {
+    "preparing": "Indexing files…",
+    "hashing": "Looking for duplicates…",
+    "sharpness": "Scoring sharpness and similarity…",
+    "cancel": "Stop",
+    "again": "Scan {{name}} again",
+    "offline": "{{count}} photos are stored in the cloud and not on this Mac, so they were skipped. Download them in Finder to include them.",
+    "offlineAsk": "{{count}} photos are in the cloud and not on this Mac ({{size}}).",
+    "download": "Download them",
+    "downloading": "Downloading from iCloud",
+    "stalled": "iCloud stopped sending after {{done}} of {{total}}. Try again later, or download the folder from the Finder."
+  },
+  "tabs": {
+    "duplicates": "Duplicates",
+    "blur": "Blurry"
+  },
+  "results": {
+    "summary_one": "{{count}} duplicate group · {{size}} reclaimable",
+    "summary_other": "{{count}} duplicate groups · {{size}} reclaimable",
+    "noneTitle": "No duplicates.",
+    "noneBody_one": "Skimrr checked {{count}} photo in this folder: nothing matches at this threshold.",
+    "noneBody_other": "Skimrr checked {{count}} photos in this folder: nothing matches at this threshold."
+  },
+  "dup": {
+    "threshold": "Similarity threshold"
+  },
+  "group": {
+    "title": "Group {{n}} of {{total}}",
+    "exact": "exact duplicates",
+    "pair": "raw + JPEG of one shot",
+    "similar": "similar · ~{{p}}%",
+    "kept": "Kept",
+    "hint": "Suggestion: the best original: raw, then resolution, then sharpness. Click another photo to keep it instead.",
+    "keptWhy": "Kept because {{why}}. Click another photo to keep it instead.",
+    "why": {
+      "raw": "it is the raw file",
+      "pixels": "it has more pixels",
+      "sharp": "it is the sharpest",
+      "recent": "it is the most recent"
+    },
+    "trash_one": "Move {{count}} photo to trash",
+    "trash_other": "Move {{count}} photos to trash"
+  },
+  "blur": {
+    "threshold": "Sharpness threshold",
+    "below_one": "{{count}} blurry photo",
+    "below_other": "{{count}} blurry photos",
+    "none": "No photos below this threshold.",
+    "selectAll": "Select all",
+    "clear": "Clear selection",
+    "trash_one": "Move {{count}} photo to trash",
+    "trash_other": "Move {{count}} photos to trash",
+    "borderline": "Just above the threshold, click to include"
+  },
+  "confirm": {
+    "title_one": "Move this photo to the trash?",
+    "title_other": "Move these {{count}} photos to the trash?",
+    "body_one": "Review it below. {{size}} will be freed once you empty the trash.",
+    "body_other": "Review them below. {{size}} will be freed once you empty the trash.",
+    "excludeHint": "Click any photo to keep it out of this batch.",
+    "restoreHint_one": "{{count}} photo pulled out of this batch. Click it again to put it back.",
+    "restoreHint_other": "{{count}} photos pulled out of this batch. Click them again to put them back.",
+    "cancel": "Cancel",
+    "confirm_one": "Move {{count}} photo",
+    "confirm_other": "Move {{count}} photos"
+  },
+  "toast": {
+    "moved_one": "{{count}} photo moved to trash",
+    "moved_other": "{{count}} photos moved to trash",
+    "undo": "Undo"
+  },
+  "actions": {
+    "back": "Scan another folder",
+    "close": "Close"
+  },
+  "error": {
+    "scan": "Something went wrong while scanning this folder.",
+    "trash": "Some photos could not be moved.",
+    "library": "That folder is a managed photo library. Skimrr cannot work inside it without risking your albums and edits. Export the originals to a normal folder first, then scan that."
+  },
+  "theme": {
+    "auto": "Theme: auto",
+    "light": "Theme: light",
+    "dark": "Theme: dark"
+  },
+  "language": "Language",
+  "trash": {
+    "link": "Trash",
+    "summary_one": "{{count}} photo in the trash · {{size}}",
+    "summary_other": "{{count}} photos in the trash · {{size}}",
+    "empty": "The trash is empty.",
+    "emptyBody2": "Photos you move here stay recoverable until you empty it.",
+    "batchCount_one": "{{count}} photo",
+    "batchCount_other": "{{count}} photos",
+    "restore": "Put back",
+    "back": "Back to results",
+    "emptyAction": "Empty the trash",
+    "emptyTitle": "Delete for good?",
+    "emptyBody_one": "{{count}} photo ({{size}}) will be deleted permanently. This cannot be undone.",
+    "emptyBody_other": "{{count}} photos ({{size}}) will be deleted permanently. This cannot be undone.",
+    "emptyConfirm": "Delete permanently"
+  },
+  "viewer": {
+    "open": "View larger",
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next",
+    "keep": "Keep this one",
+    "sharpness": "sharpness",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit to window",
+    "zoomHint": "scroll or double-click to zoom, drag to pan",
+    "actual": "Actual pixels"
+  },
+  "guide": {
+    "title": "How Skimrr works",
+    "intro": "Two passes over one folder, and nothing leaves this computer.",
+    "scan": {
+      "title": "Choose a folder",
+      "body": "Skimrr reads every photo once, including raw and HEIC, and looks for two things only: copies of the same picture, and shots that missed focus."
+    },
+    "review": {
+      "title": "Decide what stays",
+      "body": "Each duplicate group suggests the best original to keep. Click any photo to enlarge it, or pick a different one. The blur threshold is yours to move."
+    },
+    "trash": {
+      "title": "Nothing vanishes",
+      "body": "Before anything moves, you see the whole batch as a grid and can pull photos back out of it. Files go to a local trash you can restore from until you empty it."
+    },
+    "privacy": "No account. Your photos never leave this computer. Only activation talks to the network, once, then about once a month.",
+    "start": "Got it",
+    "open": "How it works"
+  },
+  "licence": {
+    "title": "Activate Skimrr",
+    "body": "Scanning and reviewing are free. Moving files to the trash needs a licence: one payment, yours for good, up to 3 devices.",
+    "field": "Licence key",
+    "activate": "Activate",
+    "checking": "Checking…",
+    "buy": "Buy Skimrr for $19.99",
+    "note": "The key arrives by email right after purchase. Activation contacts our licence server once; nothing about your photos is sent.",
+    "errors": {
+      "invalid": "That key was not recognised. Check it was copied in full.",
+      "offline": "Could not reach the licence server. Check your connection and try again.",
+      "limit": "This licence is already active on 3 devices. Release one from another machine, or from your Lemon Squeezy account.",
+      "unexpected": "Something went wrong. Try again in a moment."
+    }
+  },
+  "update": {
+    "available": "Version {{version}} available",
+    "hint": "Opens the download page in your browser"
+  },
+  "stats": {
+    "tab": "Overview",
+    "photos": "Photos scanned",
+    "reclaim": "Could be freed",
+    "groups": "Duplicate groups",
+    "make": "What the folder is made of",
+    "dupes": "In duplicate groups",
+    "blurry": "Blurry",
+    "rest": "Everything else",
+    "formats": "By format",
+    "years": "By year",
+    "none": "Scan a folder to see its breakdown",
+    "other": "Other"
+  },
+  "compare": {
+    "photos": "in this group",
+    "layout": "Panes",
+    "in": "Zoom in",
+    "out": "Zoom out",
+    "fit": "Fit",
+    "keep": "Keep this one",
+    "hint": "Zoom moves every pane at once. Arrows to move, Enter to keep.",
+    "open": "Compare"
+  },
+  "days": {
+    "tab": "Gallery",
+    "photos": "photos",
+    "selected": "{{count}} days selected",
+    "clear": "Clear",
+    "hint": "Pick one or more days to narrow the duplicate and blur tabs to them.",
+    "narrowed": "Narrowed to {{count}} days",
+    "undated": "No date"
+  },
+  "settings": {
+    "title": "Settings",
+    "working": "Working…",
+    "licence": {
+      "title": "Licence",
+      "active": "Active",
+      "devices": "{{used}} of {{limit}} devices",
+      "releaseNote": "Releasing this device frees a slot for another machine. The key keeps working, you simply enter it again there.",
+      "release": "Release this device",
+      "none": "No licence on this device. Scanning and reviewing are free; moving files to the trash is what a licence buys.",
+      "failed": "Could not reach the licence server. Try again in a moment."
+    },
+    "cache": {
+      "title": "Cache",
+      "files_one": "1 file",
+      "files_other": "{{count}} files",
+      "note": "Thumbnails and analysis results, rebuilt on the next scan. Photos and trash untouched.",
+      "clear": "Clear the cache",
+      "freed": "{{size}} freed.",
+      "failed": "Some files could not be removed.",
+      "closes": "Clearing closes the results on screen. The folder can be scanned again straight away."
+    },
+    "look": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "themes": {
+        "auto": "Automatic",
+        "light": "Light",
+        "dark": "Dark"
+      }
+    },
+    "about": {
+      "title": "About"
+    }
+  }
+}

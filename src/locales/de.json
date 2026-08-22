@@ -1,0 +1,230 @@
+{
+  "tagline": "Duplikate und unscharfe Fotos, lokal erkannt. Sonst nichts.",
+  "home": {
+    "choose": "Ordner zum Analysieren wählen",
+    "drop": "oder einen Ordner hierher ziehen",
+    "dropActive": "Loslassen, um den Scan zu starten",
+    "privacy": "Kein Konto. Deine Fotos verlassen diesen Rechner nie."
+  },
+  "scan": {
+    "preparing": "Dateien werden indiziert …",
+    "hashing": "Suche nach Duplikaten …",
+    "sharpness": "Bewertung von Schärfe und Ähnlichkeit …",
+    "cancel": "Stoppen",
+    "again": "{{name}} erneut scannen",
+    "offline": "{{count}} Fotos liegen in der Cloud und nicht auf diesem Mac und wurden übersprungen. Lade sie im Finder herunter, um sie einzubeziehen.",
+    "offlineAsk": "{{count}} Fotos liegen in der Cloud und nicht auf diesem Mac ({{size}}).",
+    "download": "Herunterladen",
+    "downloading": "Wird aus iCloud geladen",
+    "stalled": "iCloud hat nach {{done}} von {{total}} aufgehört. Versuche es später, oder lade den Ordner im Finder."
+  },
+  "tabs": {
+    "duplicates": "Duplikate",
+    "blur": "Unscharf"
+  },
+  "results": {
+    "summary_one": "{{count}} Duplikat-Gruppe · {{size}} einsparbar",
+    "summary_other": "{{count}} Duplikat-Gruppen · {{size}} einsparbar",
+    "noneTitle": "Keine Duplikate.",
+    "noneBody_one": "Skimrr hat {{count}} Foto in diesem Ordner geprüft: nichts entspricht dieser Schwelle.",
+    "noneBody_other": "Skimrr hat {{count}} Fotos in diesem Ordner geprüft: nichts entspricht dieser Schwelle."
+  },
+  "dup": {
+    "threshold": "Ähnlichkeitsschwelle"
+  },
+  "group": {
+    "title": "Gruppe {{n}} von {{total}}",
+    "exact": "exakte Duplikate",
+    "pair": "Raw + JPEG derselben Aufnahme",
+    "similar": "ähnlich · ~{{p}} %",
+    "kept": "Behalten",
+    "hint": "Vorschlag: das beste Original: Raw, dann Auflösung, dann Schärfe. Klicke auf ein anderes Foto, um stattdessen dieses zu behalten.",
+    "keptWhy": "Behalten, weil {{why}}. Klicken Sie ein anderes Foto an, um dieses stattdessen zu behalten.",
+    "why": {
+      "raw": "es die Raw-Datei ist",
+      "pixels": "sie mehr Pixel hat",
+      "sharp": "sie am schärfsten ist",
+      "recent": "sie die neueste ist"
+    },
+    "trash_one": "{{count}} Foto in den Papierkorb verschieben",
+    "trash_other": "{{count}} Fotos in den Papierkorb verschieben"
+  },
+  "blur": {
+    "threshold": "Schärfeschwelle",
+    "below_one": "{{count}} unscharfes Foto",
+    "below_other": "{{count}} unscharfe Fotos",
+    "none": "Keine Fotos unter dieser Schwelle.",
+    "selectAll": "Alle auswählen",
+    "clear": "Auswahl aufheben",
+    "trash_one": "{{count}} Foto in den Papierkorb verschieben",
+    "trash_other": "{{count}} Fotos in den Papierkorb verschieben",
+    "borderline": "Knapp über der Schwelle, zum Aufnehmen anklicken"
+  },
+  "confirm": {
+    "title_one": "Dieses Foto in den Papierkorb verschieben?",
+    "title_other": "Diese {{count}} Fotos in den Papierkorb verschieben?",
+    "body_one": "Sieh es dir unten an. {{size}} werden frei, sobald du den Papierkorb leerst.",
+    "body_other": "Sieh sie dir unten an. {{size}} werden frei, sobald du den Papierkorb leerst.",
+    "excludeHint": "Klicke ein Foto an, um es aus diesem Stapel zu nehmen.",
+    "restoreHint_one": "{{count}} Foto aus dem Stapel genommen. Klicke es erneut an, um es zurückzulegen.",
+    "restoreHint_other": "{{count}} Fotos aus dem Stapel genommen. Klicke sie erneut an, um sie zurückzulegen.",
+    "cancel": "Abbrechen",
+    "confirm_one": "{{count}} Foto verschieben",
+    "confirm_other": "{{count}} Fotos verschieben"
+  },
+  "toast": {
+    "moved_one": "{{count}} Foto in den Papierkorb verschoben",
+    "moved_other": "{{count}} Fotos in den Papierkorb verschoben",
+    "undo": "Rückgängig"
+  },
+  "actions": {
+    "back": "Anderen Ordner analysieren",
+    "close": "Schließen"
+  },
+  "error": {
+    "scan": "Die Analyse dieses Ordners ist fehlgeschlagen.",
+    "trash": "Einige Fotos konnten nicht verschoben werden.",
+    "library": "Dieser Ordner ist eine verwaltete Fotomediathek. Skimrr kann darin nicht arbeiten, ohne deine Alben und Bearbeitungen zu gefährden. Exportiere die Originale zuerst in einen normalen Ordner."
+  },
+  "theme": {
+    "auto": "Design: automatisch",
+    "light": "Design: hell",
+    "dark": "Design: dunkel"
+  },
+  "language": "Sprache",
+  "trash": {
+    "link": "Papierkorb",
+    "summary_one": "{{count}} Foto im Papierkorb · {{size}}",
+    "summary_other": "{{count}} Fotos im Papierkorb · {{size}}",
+    "empty": "Der Papierkorb ist leer.",
+    "emptyBody2": "Hierher verschobene Fotos bleiben wiederherstellbar, bis du ihn leerst.",
+    "batchCount_one": "{{count}} Foto",
+    "batchCount_other": "{{count}} Fotos",
+    "restore": "Zurücklegen",
+    "back": "Zurück zu den Ergebnissen",
+    "emptyAction": "Papierkorb leeren",
+    "emptyTitle": "Endgültig löschen?",
+    "emptyBody_one": "{{count}} Foto ({{size}}) wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
+    "emptyBody_other": "{{count}} Fotos ({{size}}) werden endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
+    "emptyConfirm": "Endgültig löschen"
+  },
+  "viewer": {
+    "open": "Vergrößern",
+    "close": "Schließen",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "keep": "Diese behalten",
+    "sharpness": "Schärfe",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fit": "Ans Fenster anpassen",
+    "zoomHint": "Scrollen oder Doppelklick zum Zoomen, Ziehen zum Verschieben",
+    "actual": "Originalgröße"
+  },
+  "guide": {
+    "title": "So arbeitet Skimrr",
+    "intro": "Zwei Durchgänge über einen Ordner, und nichts verlässt diesen Rechner.",
+    "scan": {
+      "title": "Ordner wählen",
+      "body": "Skimrr liest jedes Foto einmal, auch Raw und HEIC, und sucht nur zwei Dinge: Kopien desselben Bildes und Aufnahmen, die den Fokus verfehlt haben."
+    },
+    "review": {
+      "title": "Entscheiden, was bleibt",
+      "body": "Jede Duplikat-Gruppe schlägt das beste Original vor. Klicke ein Foto an, um es zu vergrößern, oder wähle ein anderes. Die Schärfeschwelle bestimmst du."
+    },
+    "trash": {
+      "title": "Nichts verschwindet",
+      "body": "Vor jedem Verschieben siehst du den ganzen Stapel als Raster und kannst Fotos herausnehmen. Dateien landen in einem lokalen Papierkorb, wiederherstellbar bis du ihn leerst."
+    },
+    "privacy": "Kein Konto. Deine Fotos verlassen diesen Rechner nie. Nur die Aktivierung geht ins Netz, einmal, danach etwa monatlich.",
+    "start": "Verstanden",
+    "open": "So funktioniert es"
+  },
+  "licence": {
+    "title": "Skimrr aktivieren",
+    "body": "Analysieren und Prüfen sind kostenlos. Dateien in den Papierkorb zu verschieben braucht eine Lizenz: einmal zahlen, für immer, bis zu 3 Geräte.",
+    "field": "Lizenzschlüssel",
+    "activate": "Aktivieren",
+    "checking": "Wird geprüft …",
+    "buy": "Skimrr kaufen für 19,99 $",
+    "note": "Der Schlüssel kommt direkt nach dem Kauf per E-Mail. Die Aktivierung kontaktiert unseren Lizenzserver einmal; nichts von deinen Fotos wird übertragen.",
+    "errors": {
+      "invalid": "Dieser Schlüssel wurde nicht erkannt. Prüfe, ob er vollständig kopiert wurde.",
+      "offline": "Der Lizenzserver war nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+      "limit": "Diese Lizenz ist bereits auf 3 Geräten aktiv. Gib eines auf dem anderen Rechner frei oder über dein Lemon-Squeezy-Konto.",
+      "unexpected": "Etwas ist schiefgelaufen. Versuche es gleich noch einmal."
+    }
+  },
+  "update": {
+    "available": "Version {{version}} verfügbar",
+    "hint": "Öffnet die Downloadseite im Browser"
+  },
+  "stats": {
+    "tab": "Überblick",
+    "photos": "Analysierte Fotos",
+    "reclaim": "Freigebbar",
+    "groups": "Duplikatgruppen",
+    "make": "Woraus der Ordner besteht",
+    "dupes": "In Gruppen",
+    "blurry": "Unscharf",
+    "rest": "Alles andere",
+    "formats": "Nach Format",
+    "years": "Nach Jahr",
+    "none": "Scanne einen Ordner, um die Aufteilung zu sehen",
+    "other": "Andere"
+  },
+  "compare": {
+    "photos": "in dieser Gruppe",
+    "layout": "Ansichten",
+    "in": "Vergrößern",
+    "out": "Verkleinern",
+    "fit": "Einpassen",
+    "keep": "Diese behalten",
+    "hint": "Der Zoom bewegt alle Ansichten zugleich. Pfeile zum Wechseln, Enter zum Behalten.",
+    "open": "Vergleichen"
+  },
+  "days": {
+    "tab": "Galerie",
+    "photos": "Fotos",
+    "selected": "{{count}} Tage ausgewählt",
+    "clear": "Alles zeigen",
+    "hint": "Wähle einen oder mehrere Tage, um die Reiter Duplikate und Unscharf darauf zu beschränken.",
+    "narrowed": "Beschränkt auf {{count}} Tage",
+    "undated": "Ohne Datum"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "working": "Läuft…",
+    "licence": {
+      "title": "Lizenz",
+      "active": "Aktiv",
+      "devices": "{{used}} von {{limit}} Geräten",
+      "releaseNote": "Wird dieses Gerät freigegeben, wird ein Platz für einen anderen Rechner frei. Ihr Schlüssel bleibt gültig, Sie geben ihn dort einfach erneut ein.",
+      "release": "Dieses Gerät freigeben",
+      "none": "Keine Lizenz auf diesem Gerät. Prüfen und Durchsehen sind kostenlos; das Verschieben in den Papierkorb erfordert eine Lizenz.",
+      "failed": "Der Lizenzserver ist nicht erreichbar. Versuchen Sie es gleich noch einmal."
+    },
+    "cache": {
+      "title": "Cache",
+      "files_one": "1 Datei",
+      "files_other": "{{count}} Dateien",
+      "note": "Vorschaubilder und Analyseergebnisse, beim nächsten Durchlauf neu erstellt. Fotos und Papierkorb bleiben unberührt.",
+      "clear": "Cache leeren",
+      "freed": "{{size}} freigegeben.",
+      "failed": "Einige Dateien konnten nicht entfernt werden.",
+      "closes": "Das Leeren schließt die angezeigten Ergebnisse. Der Ordner kann sofort erneut geprüft werden."
+    },
+    "look": {
+      "title": "Darstellung",
+      "theme": "Thema",
+      "themes": {
+        "auto": "Automatisch",
+        "light": "Hell",
+        "dark": "Dunkel"
+      }
+    },
+    "about": {
+      "title": "Über"
+    }
+  }
+}

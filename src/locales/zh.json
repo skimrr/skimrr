@@ -1,0 +1,216 @@
+{
+  "tagline": "重复照片与模糊照片，本地检测。仅此而已。",
+  "home": {
+    "choose": "选择要分析的文件夹",
+    "drop": "或将文件夹拖放到此处",
+    "dropActive": "松开以开始扫描",
+    "privacy": "无需账号。您的照片绝不会离开这台电脑。"
+  },
+  "scan": {
+    "preparing": "正在索引文件…",
+    "hashing": "正在查找重复照片…",
+    "sharpness": "正在评估清晰度与相似度…",
+    "cancel": "停止",
+    "again": "重新扫描 {{name}}",
+    "offline": "{{count}} 张照片存储在云端而不在这台 Mac 上，已跳过。在访达中下载后即可纳入。",
+    "offlineAsk": "{{count}} 张照片在云端而不在这台 Mac 上（{{size}}）。",
+    "download": "下载它们",
+    "downloading": "正在从 iCloud 下载",
+    "stalled": "iCloud 在 {{total}} 张中的第 {{done}} 张后停止。请稍后重试，或在访达中下载该文件夹。"
+  },
+  "tabs": {
+    "duplicates": "重复",
+    "blur": "模糊"
+  },
+  "results": {
+    "summary_other": "{{count}} 组重复照片 · 可释放 {{size}}",
+    "noneTitle": "未发现重复照片。",
+    "noneBody_other": "Skimrr 已检查此文件夹中的 {{count}} 张照片：没有符合此阈值的照片。"
+  },
+  "dup": {
+    "threshold": "相似度阈值"
+  },
+  "group": {
+    "title": "第 {{n}} 组，共 {{total}} 组",
+    "exact": "完全重复",
+    "pair": "同一次拍摄的 raw 与 JPEG",
+    "similar": "相似 · 约{{p}}%",
+    "kept": "保留",
+    "hint": "建议：最佳原片（依次为 raw、分辨率、清晰度）。点击其他照片可改为保留它。",
+    "keptWhy": "保留它是因为{{why}}。点击其他照片可改为保留那一张。",
+    "why": {
+      "raw": "它是 raw 文件",
+      "pixels": "它的像素更多",
+      "sharp": "它最清晰",
+      "recent": "它最新"
+    },
+    "trash_other": "将 {{count}} 张照片移入回收站"
+  },
+  "blur": {
+    "threshold": "清晰度阈值",
+    "below_other": "{{count}} 张模糊照片",
+    "none": "没有低于此阈值的照片。",
+    "selectAll": "全选",
+    "clear": "取消选择",
+    "trash_other": "将 {{count}} 张照片移入回收站",
+    "borderline": "刚好高于阈值，点击可加入"
+  },
+  "confirm": {
+    "title_other": "将这 {{count}} 张照片移入回收站？",
+    "body_other": "请在下方确认：清空回收站后将释放 {{size}}。",
+    "excludeHint": "点击照片可将其排除在本次操作之外。",
+    "restoreHint_other": "已排除 {{count}} 张，再次点击可重新加入。",
+    "cancel": "取消",
+    "confirm_other": "移入 {{count}} 张"
+  },
+  "toast": {
+    "moved_other": "已将 {{count}} 张照片移入回收站",
+    "undo": "撤销"
+  },
+  "actions": {
+    "back": "分析其他文件夹",
+    "close": "关闭"
+  },
+  "error": {
+    "scan": "分析此文件夹时出错。",
+    "trash": "部分照片无法移动。",
+    "library": "该文件夹是受管理的照片图库。Skimrr 无法在其中操作，否则可能损坏您的相簿与编辑。请先将原片导出到普通文件夹，再进行扫描。"
+  },
+  "theme": {
+    "auto": "主题：自动",
+    "light": "主题：浅色",
+    "dark": "主题：深色"
+  },
+  "language": "语言",
+  "trash": {
+    "link": "回收站",
+    "summary_other": "回收站中有 {{count}} 张照片 · {{size}}",
+    "empty": "回收站是空的。",
+    "emptyBody2": "移入这里的照片在清空之前都可以恢复。",
+    "batchCount_other": "{{count}} 张",
+    "restore": "放回原处",
+    "back": "返回结果",
+    "emptyAction": "清空回收站",
+    "emptyTitle": "永久删除？",
+    "emptyBody_other": "{{count}} 张照片（{{size}}）将被永久删除，且无法撤销。",
+    "emptyConfirm": "永久删除"
+  },
+  "viewer": {
+    "open": "放大查看",
+    "close": "关闭",
+    "previous": "上一张",
+    "next": "下一张",
+    "keep": "保留这张",
+    "sharpness": "清晰度",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "fit": "适应窗口",
+    "zoomHint": "滚动或双击缩放，拖动平移",
+    "actual": "实际像素"
+  },
+  "guide": {
+    "title": "Skimrr 的工作方式",
+    "intro": "对一个文件夹做两项分析，任何数据都不会离开这台电脑。",
+    "scan": {
+      "title": "选择文件夹",
+      "body": "Skimrr 会把每张照片读取一次（含 raw 与 HEIC），只找两样东西：同一画面的副本，以及失焦的照片。"
+    },
+    "review": {
+      "title": "决定保留哪张",
+      "body": "每组重复照片都会推荐最佳原片。点击照片可放大，也可以另选一张。清晰度阈值由你调整。"
+    },
+    "trash": {
+      "title": "没有东西会凭空消失",
+      "body": "移动之前，你会以网格看到整批照片，并可将其中任意一张移出。文件进入本地回收站，清空之前都能恢复。"
+    },
+    "privacy": "无需账号。您的照片绝不会离开这台电脑。只有激活时会联网一次，之后大约每月一次。",
+    "start": "知道了",
+    "open": "使用说明"
+  },
+  "licence": {
+    "title": "激活 Skimrr",
+    "body": "分析与查看免费。将文件移入回收站需要许可证：一次付款，终身有效，最多 3 台设备。",
+    "field": "许可证密钥",
+    "activate": "激活",
+    "checking": "正在验证…",
+    "buy": "购买 Skimrr（$19.99）",
+    "note": "购买后密钥会立即通过邮件发送。激活时会联系一次许可证服务器；不会发送任何与您照片相关的信息。",
+    "errors": {
+      "invalid": "无法识别该密钥，请确认已完整复制。",
+      "offline": "无法连接许可证服务器。请检查网络后重试。",
+      "limit": "该许可证已在 3 台设备上激活。请在其他设备或 Lemon Squeezy 账户中释放一台。",
+      "unexpected": "出现问题，请稍后重试。"
+    }
+  },
+  "update": {
+    "available": "版本 {{version}} 可用",
+    "hint": "在浏览器中打开下载页面"
+  },
+  "stats": {
+    "tab": "总览",
+    "photos": "已扫描照片",
+    "reclaim": "可释放",
+    "groups": "重复组",
+    "make": "文件夹构成",
+    "dupes": "重复组内",
+    "blurry": "模糊",
+    "rest": "其余全部",
+    "formats": "按格式",
+    "years": "按年份",
+    "none": "扫描文件夹后可查看构成",
+    "other": "其他"
+  },
+  "compare": {
+    "photos": "张（本组）",
+    "layout": "分屏",
+    "in": "放大",
+    "out": "缩小",
+    "fit": "适应",
+    "keep": "保留这张",
+    "hint": "缩放会同时作用于所有画面。方向键切换，回车保留。",
+    "open": "对比"
+  },
+  "days": {
+    "tab": "图库",
+    "photos": "张",
+    "selected": "已选 {{count}} 天",
+    "clear": "显示全部",
+    "hint": "选择一天或多天，可将重复与模糊标签页限定在其中。",
+    "narrowed": "已限定为 {{count}} 天",
+    "undated": "无日期"
+  },
+  "settings": {
+    "title": "设置",
+    "working": "处理中…",
+    "licence": {
+      "title": "许可证",
+      "active": "已激活",
+      "devices": "{{limit}} 台中的 {{used}} 台",
+      "releaseNote": "释放此设备会为另一台电脑腾出一个名额。密钥仍然有效，在那台电脑上重新输入即可。",
+      "release": "释放此设备",
+      "none": "此设备没有许可证。扫描和查看是免费的；将文件移入回收站需要许可证。",
+      "failed": "无法连接许可证服务器。请稍后重试。"
+    },
+    "cache": {
+      "title": "缓存",
+      "files_other": "{{count}} 个文件",
+      "note": "缩略图和分析结果，下次扫描时重新生成。照片和回收站不受影响。",
+      "clear": "清除缓存",
+      "freed": "已释放 {{size}}。",
+      "failed": "部分文件无法删除。",
+      "closes": "清除会关闭当前显示的结果。文件夹可以立即重新扫描。"
+    },
+    "look": {
+      "title": "外观",
+      "theme": "主题",
+      "themes": {
+        "auto": "自动",
+        "light": "浅色",
+        "dark": "深色"
+      }
+    },
+    "about": {
+      "title": "关于"
+    }
+  }
+}

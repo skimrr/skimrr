@@ -1,0 +1,230 @@
+{
+  "tagline": "Doublons et photos floues, repérés en local. Rien d'autre.",
+  "home": {
+    "choose": "Choisir un dossier à analyser",
+    "drop": "ou glissez un dossier ici",
+    "dropActive": "Relâchez pour lancer l'analyse",
+    "privacy": "Pas de compte. Vos photos ne quittent jamais cet ordinateur."
+  },
+  "scan": {
+    "preparing": "Indexation des fichiers…",
+    "hashing": "Recherche de doublons…",
+    "sharpness": "Évaluation de la netteté et des similitudes…",
+    "cancel": "Arrêter",
+    "again": "Analyser à nouveau {{name}}",
+    "offline": "{{count}} photos sont dans le nuage et non sur ce Mac : elles ont été ignorées. Téléchargez-les depuis le Finder pour les inclure.",
+    "offlineAsk": "{{count}} photos sont dans le nuage et non sur ce Mac ({{size}}).",
+    "download": "Les télécharger",
+    "downloading": "Téléchargement depuis iCloud",
+    "stalled": "iCloud s'est arrêté après {{done}} sur {{total}}. Réessayez plus tard, ou téléchargez le dossier depuis le Finder."
+  },
+  "tabs": {
+    "duplicates": "Doublons",
+    "blur": "Flou"
+  },
+  "results": {
+    "summary_one": "{{count}} groupe de doublons · {{size}} récupérables",
+    "summary_other": "{{count}} groupes de doublons · {{size}} récupérables",
+    "noneTitle": "Aucun doublon.",
+    "noneBody_one": "Skimrr a vérifié {{count}} photo dans ce dossier : rien ne correspond à ce seuil.",
+    "noneBody_other": "Skimrr a vérifié {{count}} photos dans ce dossier : rien ne correspond à ce seuil."
+  },
+  "dup": {
+    "threshold": "Seuil de similarité"
+  },
+  "group": {
+    "title": "Groupe {{n}} sur {{total}}",
+    "exact": "doublons exacts",
+    "pair": "raw + JPEG d'une même prise",
+    "similar": "similaires · ~{{p}} %",
+    "kept": "Conservée",
+    "hint": "Suggestion : le meilleur original : raw, puis résolution, puis netteté. Cliquez une autre photo pour la conserver à la place.",
+    "keptWhy": "Gardée parce que {{why}}. Cliquez une autre photo pour la garder à sa place.",
+    "why": {
+      "raw": "c'est le fichier raw",
+      "pixels": "elle a plus de pixels",
+      "sharp": "c'est la plus nette",
+      "recent": "c'est la plus récente"
+    },
+    "trash_one": "Déplacer {{count}} photo vers la corbeille",
+    "trash_other": "Déplacer {{count}} photos vers la corbeille"
+  },
+  "blur": {
+    "threshold": "Seuil de netteté",
+    "below_one": "{{count}} photo floue",
+    "below_other": "{{count}} photos floues",
+    "none": "Aucune photo sous ce seuil.",
+    "selectAll": "Tout sélectionner",
+    "clear": "Tout désélectionner",
+    "trash_one": "Déplacer {{count}} photo vers la corbeille",
+    "trash_other": "Déplacer {{count}} photos vers la corbeille",
+    "borderline": "Juste au-dessus du seuil, cliquez pour inclure"
+  },
+  "confirm": {
+    "title_one": "Déplacer cette photo vers la corbeille ?",
+    "title_other": "Déplacer ces {{count}} photos vers la corbeille ?",
+    "body_one": "Vérifiez-la ci-dessous. {{size}} seront libérés une fois la corbeille vidée.",
+    "body_other": "Vérifiez-les ci-dessous. {{size}} seront libérés une fois la corbeille vidée.",
+    "excludeHint": "Cliquez une photo pour la retirer de ce lot.",
+    "restoreHint_one": "{{count}} photo retirée du lot. Cliquez-la à nouveau pour la remettre.",
+    "restoreHint_other": "{{count}} photos retirées du lot. Cliquez-les à nouveau pour les remettre.",
+    "cancel": "Annuler",
+    "confirm_one": "Déplacer {{count}} photo",
+    "confirm_other": "Déplacer {{count}} photos"
+  },
+  "toast": {
+    "moved_one": "{{count}} photo déplacée vers la corbeille",
+    "moved_other": "{{count}} photos déplacées vers la corbeille",
+    "undo": "Annuler"
+  },
+  "actions": {
+    "back": "Analyser un autre dossier",
+    "close": "Fermer"
+  },
+  "error": {
+    "scan": "L'analyse de ce dossier a échoué.",
+    "trash": "Certaines photos n'ont pas pu être déplacées.",
+    "library": "Ce dossier est une photothèque gérée. Skimrr ne peut pas y travailler sans risquer vos albums et vos retouches. Exportez d'abord les originaux vers un dossier ordinaire, puis analysez celui-ci."
+  },
+  "theme": {
+    "auto": "Thème : auto",
+    "light": "Thème : clair",
+    "dark": "Thème : sombre"
+  },
+  "language": "Langue",
+  "trash": {
+    "link": "Corbeille",
+    "summary_one": "{{count}} photo dans la corbeille · {{size}}",
+    "summary_other": "{{count}} photos dans la corbeille · {{size}}",
+    "empty": "La corbeille est vide.",
+    "emptyBody2": "Les photos déplacées ici restent récupérables tant que vous ne la videz pas.",
+    "batchCount_one": "{{count}} photo",
+    "batchCount_other": "{{count}} photos",
+    "restore": "Remettre en place",
+    "back": "Retour aux résultats",
+    "emptyAction": "Vider la corbeille",
+    "emptyTitle": "Supprimer définitivement ?",
+    "emptyBody_one": "{{count}} photo ({{size}}) sera supprimée définitivement. Cette action est irréversible.",
+    "emptyBody_other": "{{count}} photos ({{size}}) seront supprimées définitivement. Cette action est irréversible.",
+    "emptyConfirm": "Supprimer définitivement"
+  },
+  "viewer": {
+    "open": "Agrandir",
+    "close": "Fermer",
+    "previous": "Précédente",
+    "next": "Suivante",
+    "keep": "Conserver celle-ci",
+    "sharpness": "netteté",
+    "zoomIn": "Agrandir",
+    "zoomOut": "Réduire",
+    "fit": "Ajuster à la fenêtre",
+    "zoomHint": "molette ou double-clic pour zoomer, glisser pour déplacer",
+    "actual": "Pixels réels"
+  },
+  "guide": {
+    "title": "Comment fonctionne Skimrr",
+    "intro": "Deux analyses sur un dossier, et rien ne quitte cet ordinateur.",
+    "scan": {
+      "title": "Choisissez un dossier",
+      "body": "Skimrr lit chaque photo une fois, raw et HEIC compris, et ne cherche que deux choses : les copies d'une même image, et les prises ratées."
+    },
+    "review": {
+      "title": "Décidez ce qui reste",
+      "body": "Chaque groupe de doublons propose le meilleur original. Cliquez une photo pour l'agrandir, ou désignez-en une autre. Le seuil de netteté est à vous de le régler."
+    },
+    "trash": {
+      "title": "Rien ne disparaît",
+      "body": "Avant tout déplacement, vous voyez le lot entier en grille et pouvez en retirer des photos. Les fichiers partent dans une corbeille locale, restaurable tant que vous ne la videz pas."
+    },
+    "privacy": "Pas de compte. Vos photos ne quittent jamais cet ordinateur. Seule l'activation contacte le réseau, une fois, puis environ une fois par mois.",
+    "start": "J'ai compris",
+    "open": "Comment ça marche"
+  },
+  "licence": {
+    "title": "Activer Skimrr",
+    "body": "Analyser et vérifier sont gratuits. Déplacer des fichiers vers la corbeille demande une licence : un seul paiement, à vie, jusqu'à 3 appareils.",
+    "field": "Clé de licence",
+    "activate": "Activer",
+    "checking": "Vérification…",
+    "buy": "Acheter Skimrr, 19,99 $",
+    "note": "La clé arrive par email juste après l'achat. L'activation contacte notre serveur de licence une fois ; rien de vos photos n'est transmis.",
+    "errors": {
+      "invalid": "Cette clé n'a pas été reconnue. Vérifiez qu'elle est copiée en entier.",
+      "offline": "Impossible de joindre le serveur de licence. Vérifiez votre connexion et réessayez.",
+      "limit": "Cette licence est déjà active sur 3 appareils. Libérez-en un depuis l'autre machine, ou depuis votre compte Lemon Squeezy.",
+      "unexpected": "Une erreur est survenue. Réessayez dans un instant."
+    }
+  },
+  "update": {
+    "available": "Version {{version}} disponible",
+    "hint": "Ouvre la page de téléchargement dans votre navigateur"
+  },
+  "stats": {
+    "tab": "Vue d'ensemble",
+    "photos": "Photos analysées",
+    "reclaim": "Récupérable",
+    "groups": "Groupes de doublons",
+    "make": "Composition du dossier",
+    "dupes": "Dans des groupes",
+    "blurry": "Floues",
+    "rest": "Tout le reste",
+    "formats": "Par format",
+    "years": "Par année",
+    "none": "Analysez un dossier pour voir sa composition",
+    "other": "Autres"
+  },
+  "compare": {
+    "photos": "dans ce groupe",
+    "layout": "Vues",
+    "in": "Agrandir",
+    "out": "Réduire",
+    "fit": "Ajuster",
+    "keep": "Conserver celle-ci",
+    "hint": "Le zoom déplace toutes les vues ensemble. Flèches pour circuler, Entrée pour conserver.",
+    "open": "Comparer"
+  },
+  "days": {
+    "tab": "Galerie",
+    "photos": "photos",
+    "selected": "{{count}} jours sélectionnés",
+    "clear": "Tout afficher",
+    "hint": "Choisissez un ou plusieurs jours pour y restreindre les onglets Doublons et Flou.",
+    "narrowed": "Restreint à {{count}} jours",
+    "undated": "Sans date"
+  },
+  "settings": {
+    "title": "Réglages",
+    "working": "En cours…",
+    "licence": {
+      "title": "Licence",
+      "active": "Active",
+      "devices": "{{used}} appareils sur {{limit}}",
+      "releaseNote": "Libérer cet appareil rend une place à une autre machine. Votre clé reste valable, il suffit de la ressaisir là-bas.",
+      "release": "Libérer cet appareil",
+      "none": "Aucune licence sur cet appareil. Analyser et vérifier sont gratuits ; déplacer des fichiers vers la corbeille demande une licence.",
+      "failed": "Le serveur de licence est injoignable. Réessayez dans un instant."
+    },
+    "cache": {
+      "title": "Cache",
+      "files_one": "1 fichier",
+      "files_other": "{{count}} fichiers",
+      "note": "Vignettes et résultats d'analyse, reconstruits à la prochaine analyse. Photos et corbeille intactes.",
+      "clear": "Vider le cache",
+      "freed": "{{size}} libérés.",
+      "failed": "Certains fichiers n'ont pas pu être supprimés.",
+      "closes": "Vider ferme les résultats affichés. Le dossier peut être réanalysé aussitôt."
+    },
+    "look": {
+      "title": "Apparence",
+      "theme": "Thème",
+      "themes": {
+        "auto": "Automatique",
+        "light": "Clair",
+        "dark": "Sombre"
+      }
+    },
+    "about": {
+      "title": "À propos"
+    }
+  }
+}

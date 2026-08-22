@@ -1,0 +1,52 @@
+[package]
+name = "skimrr"
+version = "0.3.0"
+description = "Local-only photo cleanup: duplicates and blurry shots"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "skimrr_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+rayon = "1"
+sha2 = "0.10"
+imagesize = "0.13"
+# Decoding only, and only the formats Skimrr scans: this drops the AVIF/EXR
+# encoders (and their assembly toolchain requirement), which keeps the Windows
+# cross-build free of native build tools.
+image = { version = "0.25", default-features = false, features = [
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "bmp",
+    "tiff",
+] }
+heic = "0.1"
+kamadak-exif = "0.6"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+ed25519-dalek = { version = "3.0.0", features = ["rand_core"] }
+base64 = "0.23.1"
+uuid = { version = "1.24.1", features = ["v4"] }
+keyring = "4.1.6"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "native-tls"] }
+candle-core = "0.11.0"
+candle-onnx = "0.11.0"
+candle-transformers = "0.11.0"
+candle-nn = "0.11.0"
+

@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Filet de sécurité si une clé ou un secret finit un jour dans ce dossier.
+*.pem
+*.key
+
+# Poids morts : deux modèles jamais chargés par le code (seul mobilenetv2.onnx est
+# une ressource embarquée, voir tauri.conf.json).
+src-tauri/models/dinov2_small.safetensors
+src-tauri/models/mobilenetv4_small.safetensors

@@ -1,0 +1,230 @@
+{
+  "tagline": "Duplicados y fotos borrosas, detectados en local. Nada más.",
+  "home": {
+    "choose": "Elegir una carpeta para analizar",
+    "drop": "o arrastra una carpeta aquí",
+    "dropActive": "Suelta para iniciar el análisis",
+    "privacy": "Sin cuenta. Tus fotos nunca salen de este ordenador."
+  },
+  "scan": {
+    "preparing": "Indexando archivos…",
+    "hashing": "Buscando duplicados…",
+    "sharpness": "Evaluando nitidez y similitud…",
+    "cancel": "Detener",
+    "again": "Analizar {{name}} de nuevo",
+    "offline": "{{count}} fotos están en la nube y no en este Mac, así que se omitieron. Descárgalas en el Finder para incluirlas.",
+    "offlineAsk": "{{count}} fotos están en la nube y no en este Mac ({{size}}).",
+    "download": "Descargarlas",
+    "downloading": "Descargando desde iCloud",
+    "stalled": "iCloud se detuvo tras {{done}} de {{total}}. Inténtalo más tarde o descarga la carpeta desde el Finder."
+  },
+  "tabs": {
+    "duplicates": "Duplicados",
+    "blur": "Borrosas"
+  },
+  "results": {
+    "summary_one": "{{count}} grupo de duplicados · {{size}} recuperables",
+    "summary_other": "{{count}} grupos de duplicados · {{size}} recuperables",
+    "noneTitle": "Ningún duplicado.",
+    "noneBody_one": "Skimrr comprobó {{count}} foto en esta carpeta: nada coincide con este umbral.",
+    "noneBody_other": "Skimrr comprobó {{count}} fotos en esta carpeta: nada coincide con este umbral."
+  },
+  "dup": {
+    "threshold": "Umbral de similitud"
+  },
+  "group": {
+    "title": "Grupo {{n}} de {{total}}",
+    "exact": "duplicados exactos",
+    "pair": "raw + JPEG de una misma toma",
+    "similar": "similares · ~{{p}} %",
+    "kept": "Conservada",
+    "hint": "Sugerencia: el mejor original: raw, luego resolución, luego nitidez. Haz clic en otra foto para conservarla en su lugar.",
+    "keptWhy": "Se conserva porque {{why}}. Haga clic en otra foto para conservarla en su lugar.",
+    "why": {
+      "raw": "es el archivo raw",
+      "pixels": "tiene más píxeles",
+      "sharp": "es la más nítida",
+      "recent": "es la más reciente"
+    },
+    "trash_one": "Mover {{count}} foto a la papelera",
+    "trash_other": "Mover {{count}} fotos a la papelera"
+  },
+  "blur": {
+    "threshold": "Umbral de nitidez",
+    "below_one": "{{count}} foto borrosa",
+    "below_other": "{{count}} fotos borrosas",
+    "none": "Ninguna foto por debajo de este umbral.",
+    "selectAll": "Seleccionar todo",
+    "clear": "Quitar selección",
+    "trash_one": "Mover {{count}} foto a la papelera",
+    "trash_other": "Mover {{count}} fotos a la papelera",
+    "borderline": "Justo por encima del umbral: haz clic para incluir"
+  },
+  "confirm": {
+    "title_one": "¿Mover esta foto a la papelera?",
+    "title_other": "¿Mover estas {{count}} fotos a la papelera?",
+    "body_one": "Revísala abajo: se liberarán {{size}} cuando vacíes la papelera.",
+    "body_other": "Revísalas abajo: se liberarán {{size}} cuando vacíes la papelera.",
+    "excludeHint": "Haz clic en una foto para dejarla fuera de este lote.",
+    "restoreHint_one": "{{count}} foto fuera del lote. Haz clic otra vez para volver a incluirla.",
+    "restoreHint_other": "{{count}} fotos fuera del lote. Haz clic otra vez para volver a incluirlas.",
+    "cancel": "Cancelar",
+    "confirm_one": "Mover {{count}} foto",
+    "confirm_other": "Mover {{count}} fotos"
+  },
+  "toast": {
+    "moved_one": "{{count}} foto movida a la papelera",
+    "moved_other": "{{count}} fotos movidas a la papelera",
+    "undo": "Deshacer"
+  },
+  "actions": {
+    "back": "Analizar otra carpeta",
+    "close": "Cerrar"
+  },
+  "error": {
+    "scan": "El análisis de esta carpeta falló.",
+    "trash": "Algunas fotos no se pudieron mover.",
+    "library": "Esa carpeta es una fototeca gestionada. Skimrr no puede trabajar dentro sin arriesgar tus álbumes y ediciones. Exporta primero los originales a una carpeta normal y analiza esa."
+  },
+  "theme": {
+    "auto": "Tema: automático",
+    "light": "Tema: claro",
+    "dark": "Tema: oscuro"
+  },
+  "language": "Idioma",
+  "trash": {
+    "link": "Papelera",
+    "summary_one": "{{count}} foto en la papelera · {{size}}",
+    "summary_other": "{{count}} fotos en la papelera · {{size}}",
+    "empty": "La papelera está vacía.",
+    "emptyBody2": "Las fotos que muevas aquí se pueden recuperar hasta que la vacíes.",
+    "batchCount_one": "{{count}} foto",
+    "batchCount_other": "{{count}} fotos",
+    "restore": "Devolver",
+    "back": "Volver a los resultados",
+    "emptyAction": "Vaciar la papelera",
+    "emptyTitle": "¿Borrar definitivamente?",
+    "emptyBody_one": "{{count}} foto ({{size}}) se borrará de forma permanente. No se puede deshacer.",
+    "emptyBody_other": "{{count}} fotos ({{size}}) se borrarán de forma permanente. No se puede deshacer.",
+    "emptyConfirm": "Borrar definitivamente"
+  },
+  "viewer": {
+    "open": "Ampliar",
+    "close": "Cerrar",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "keep": "Conservar esta",
+    "sharpness": "nitidez",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "fit": "Ajustar a la ventana",
+    "zoomHint": "rueda o doble clic para ampliar, arrastra para desplazar",
+    "actual": "Píxeles reales"
+  },
+  "guide": {
+    "title": "Cómo funciona Skimrr",
+    "intro": "Dos análisis sobre una carpeta, y nada sale de este ordenador.",
+    "scan": {
+      "title": "Elige una carpeta",
+      "body": "Skimrr lee cada foto una vez, incluidos raw y HEIC, y solo busca dos cosas: copias de la misma imagen y tomas desenfocadas."
+    },
+    "review": {
+      "title": "Decide qué se queda",
+      "body": "Cada grupo de duplicados propone el mejor original: haz clic en una foto para ampliarla o elige otra. El umbral de nitidez lo ajustas tú."
+    },
+    "trash": {
+      "title": "Nada desaparece",
+      "body": "Antes de mover nada, ves el lote completo en una cuadrícula y puedes sacar fotos de él. Los archivos van a una papelera local, recuperable hasta que la vacíes."
+    },
+    "privacy": "Sin cuenta. Tus fotos nunca salen de este ordenador: solo la activación contacta con la red, una vez, y luego una vez al mes aproximadamente.",
+    "start": "Entendido",
+    "open": "Cómo funciona"
+  },
+  "licence": {
+    "title": "Activar Skimrr",
+    "body": "Analizar y revisar es gratis. Mover archivos a la papelera requiere una licencia: un solo pago, para siempre, hasta 3 dispositivos.",
+    "field": "Clave de licencia",
+    "activate": "Activar",
+    "checking": "Comprobando…",
+    "buy": "Comprar Skimrr por 19,99 $",
+    "note": "La clave llega por correo justo después de la compra. La activación contacta con nuestro servidor una vez; no se envía nada de tus fotos.",
+    "errors": {
+      "invalid": "No se reconoció esa clave. Comprueba que se copió entera.",
+      "offline": "No se pudo contactar con el servidor de licencias. Revisa tu conexión e inténtalo de nuevo.",
+      "limit": "Esta licencia ya está activa en 3 dispositivos. Libera uno desde la otra máquina o desde tu cuenta de Lemon Squeezy.",
+      "unexpected": "Algo salió mal. Inténtalo de nuevo en un momento."
+    }
+  },
+  "update": {
+    "available": "Versión {{version}} disponible",
+    "hint": "Abre la página de descarga en tu navegador"
+  },
+  "stats": {
+    "tab": "Resumen",
+    "photos": "Fotos analizadas",
+    "reclaim": "Se puede liberar",
+    "groups": "Grupos de duplicados",
+    "make": "Composición de la carpeta",
+    "dupes": "En grupos",
+    "blurry": "Borrosas",
+    "rest": "Todo lo demás",
+    "formats": "Por formato",
+    "years": "Por año",
+    "none": "Analiza una carpeta para ver su composición",
+    "other": "Otros"
+  },
+  "compare": {
+    "photos": "en este grupo",
+    "layout": "Paneles",
+    "in": "Acercar",
+    "out": "Alejar",
+    "fit": "Ajustar",
+    "keep": "Conservar esta",
+    "hint": "El zoom mueve todos los paneles a la vez. Flechas para moverte, Intro para conservar.",
+    "open": "Comparar"
+  },
+  "days": {
+    "tab": "Galería",
+    "photos": "fotos",
+    "selected": "{{count}} días seleccionados",
+    "clear": "Mostrar todo",
+    "hint": "Elige uno o varios días para limitar las pestañas de duplicados y borrosas.",
+    "narrowed": "Limitado a {{count}} días",
+    "undated": "Sin fecha"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "working": "En curso…",
+    "licence": {
+      "title": "Licencia",
+      "active": "Activa",
+      "devices": "{{used}} de {{limit}} dispositivos",
+      "releaseNote": "Liberar este dispositivo deja un sitio para otro equipo. Su clave sigue siendo válida, basta con introducirla allí.",
+      "release": "Liberar este dispositivo",
+      "none": "No hay licencia en este dispositivo. Analizar y revisar son gratuitos; mover archivos a la papelera requiere una licencia.",
+      "failed": "No se pudo contactar con el servidor de licencias. Inténtelo de nuevo en un momento."
+    },
+    "cache": {
+      "title": "Caché",
+      "files_one": "1 archivo",
+      "files_other": "{{count}} archivos",
+      "note": "Miniaturas y resultados de análisis, se rehacen en el próximo análisis. Fotos y papelera intactas.",
+      "clear": "Vaciar la caché",
+      "freed": "{{size}} liberados.",
+      "failed": "No se pudieron eliminar algunos archivos.",
+      "closes": "Vaciar cierra los resultados en pantalla. La carpeta puede volver a analizarse enseguida."
+    },
+    "look": {
+      "title": "Apariencia",
+      "theme": "Tema",
+      "themes": {
+        "auto": "Automático",
+        "light": "Claro",
+        "dark": "Oscuro"
+      }
+    },
+    "about": {
+      "title": "Acerca de"
+    }
+  }
+}
