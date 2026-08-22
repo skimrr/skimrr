@@ -1,138 +1,140 @@
 # Skimrr
 
-Repère les doublons et les photos floues dans une bibliothèque, entièrement en local.
-Deux détections, pas dix : le reste du tri reste au photographe. Application native
-(Tauri 2, cœur en Rust), pour macOS et Windows, traduite en six langues, avec une
-révision par modèle de vision embarqué et une suite de tests automatisés sur tout le
-pipeline de détection.
+![Skimrr: a duplicate group, with the sharpest file suggested as the one to keep](.github/hero.png)
 
-[skimrr.com](https://skimrr.com) · [Télécharger](https://skimrr.com/download) · macOS · Windows
+Finds the duplicates and the blurry shots in a photo library, entirely on the
+machine. Two detections, not ten: the rest of the sorting stays with the
+photographer. Native app (Tauri 2, Rust core), for macOS and Windows, translated
+into six languages, with an on-device vision model reviewing every match and an
+automated test suite covering the whole detection pipeline.
 
-**100 % local.** Aucune photo, aucune métadonnée ne quitte la machine. Pas de compte,
-aucune télémétrie. L'application ne demande l'accès qu'au dossier que vous choisissez.
-Seule l'activation de la licence contacte le réseau : une fois, puis environ une fois
-par mois, et jamais avec la moindre donnée issue de vos photos.
+[skimrr.com](https://skimrr.com) · [Download](https://skimrr.com/download) · macOS · Windows
 
-## Fonctionnement
+**100% local.** No photo, no metadata ever leaves the machine. No account, no
+telemetry. The app only asks for access to the folder you pick. Only licence
+activation touches the network: once, then roughly once a month, and never with
+anything read from your photos.
 
-**Doublons.** Les fichiers de taille identique sont hachés en SHA-256 (en parallèle) :
-ceux qui partagent une empreinte sont des copies exactes. En parallèle, chaque image
-est décodée une fois pour en extraire une empreinte perceptuelle 64 bits (dHash), qui
-rapproche les versions recadrées, recompressées ou retouchées. Le regroupement se fait
-par union-find, avec un seuil de similarité ajustable en direct : le curseur ne
-relance pas le scan, il ne fait que re-grouper.
+## How it works
 
-**Flou.** Score de netteté par variance du Laplacien, sans IA ni GPU. L'image est
-découpée en tuiles de 64 px et **le score est celui de la tuile la plus nette** : une
-photo est réussie dès que *quelque chose* y est net. Moyenner sur toute l'image dit
-l'inverse et signale à tort les portraits sur fond flou. Sur un bokeh de test, la
-moyenne globale tombait à 16 % du score d'une photo nette, contre 47 % par tuiles. Un
-percentile a été essayé puis écarté : un sujet occupant un dixième du cadre n'occupe
-pas assez de tuiles pour le franchir, ce qui est précisément le cas à traiter.
+**Duplicates.** Files of identical size are hashed with SHA-256 (in parallel):
+files sharing a hash are exact copies. In parallel, every image is decoded once to
+extract a 64-bit perceptual hash (dHash), which catches cropped, recompressed or
+lightly edited versions of the same shot. Grouping runs on union-find, with a
+similarity threshold adjustable live: moving the slider never re-runs the scan, it
+only re-groups the existing fingerprints.
 
-Le score dépendant du contenu, le seuil n'est pas une constante : il est calibré sur la
-médiane du dossier analysé (`médiane × 0,25`). L'onglet affiche une jauge de netteté
-par vignette, relative à cette médiane, et garde à l'écran les photos situées **juste
-au-dessus du seuil**, la difficulté d'un seuil étant de ne pas voir ce qu'il écarte de
-peu.
+**Blur.** Sharpness score by Laplacian variance, no AI, no GPU. The image is split
+into 64px tiles and **the score is the sharpest tile's**: a photo passes as soon as
+*something* in it is in focus. Averaging over the whole frame says the opposite and
+wrongly flags portraits shot against a blurred background. On a test bokeh shot,
+the whole-frame average fell to 16% of a sharp photo's score, against 47% by tile.
+A percentile approach was tried and dropped: a subject occupying a tenth of the
+frame doesn't cover enough tiles to clear it, which is exactly the case that
+matters.
 
-**Guide.** Au tout premier lancement, un écran de trois points explique ce que Skimrr
-cherche, ce qu'il ne fait pas quitter la machine, et comment les suppressions se
-passent. Il ne revient plus ensuite, et reste accessible par le « ? » de la barre.
+Because the score depends on content, the threshold isn't a constant: it's
+calibrated on the scanned folder's own median (`median × 0.25`). The tab shows a
+per-thumbnail sharpness gauge relative to that median, and keeps on screen the
+photos sitting **just above the threshold** — the hard part of any threshold is
+seeing what it drops by a hair.
 
-**Visionneuse.** Un bouton d'agrandissement apparaît au survol de chaque vignette et
-ouvre la photo en plein écran, avec ses métadonnées et son score de netteté. Les
-flèches du clavier parcourent le groupe (ou la sélection de photos floues), Échap
-ferme, et depuis un groupe de doublons on peut désigner la version à conserver sans
-revenir en arrière. Le fond de la visionneuse reste un neutre sombre dans les deux
-thèmes : un entourage clair fausse la lecture du contraste, et c'est précisément ce
-qu'on vient juger.
+**Guide.** On first launch, a three-point screen explains what Skimrr looks for,
+what never leaves the machine, and how deletions work. It doesn't come back after
+that, and stays reachable from the "?" in the topbar.
 
-Le zoom se fait à la molette, au double-clic ou aux touches `+` / `-`, on se déplace
-en glissant, et `0` réajuste. Le pourcentage affiché est celui des **pixels réels**,
-pas de la taille ajustée : un clic dessus va exactement au 1:1, et au-delà de 100 %
-l'image est interpolée : il n'y a plus rien à voir. Pour les raw et les HEIC, une
-rendition pleine résolution est générée à la première ouverture plutôt qu'au scan,
-car une bibliothèque entière coûterait bien plus cher que la poignée de photos qu'on
-examine réellement. Le plafond de détail d'un raw reste la rendition qu'il embarque
-(1920 px sur les ARW testés) : aller au-delà demanderait un dématriçage.
+**Viewer.** A zoom button appears on hover over any thumbnail and opens the photo
+full-screen, with its metadata and sharpness score. Arrow keys step through the
+group (or the blurry-photo selection), Escape closes, and from a duplicate group
+you can designate the keeper without backing out first. The viewer's background
+stays a dark neutral in both themes: a light surround throws off contrast reading,
+which is exactly what's being judged.
 
-**Corbeille.** Aucune suppression définitive silencieuse. Les photos passent d'abord par
-une grille de révision, on les voit toutes avant que quoi que ce soit ne bouge, et on
-peut en retirer du lot d'un clic. Elles sont ensuite déplacées dans une corbeille locale
-horodatée, accompagnée d'un manifeste qui permet la restauration à l'emplacement exact.
-Le déplacement est tout-ou-rien : si un fichier échoue, le lot entier est remis en place.
-Seul le vidage explicite de la corbeille supprime réellement.
+Zoom works via scroll wheel, double-click or the `+`/`-` keys, panning is
+click-and-drag, and `0` resets. The percentage shown is of **real pixels**, not the
+fitted size: clicking it jumps straight to 1:1, and past 100% the image is
+interpolated — there's nothing more to see. For raw and HEIC files, a full-resolution
+rendition is generated on first open rather than at scan time, since a whole library
+would cost far more than the handful of photos actually examined. A raw's detail
+ceiling stays whatever rendition it embeds (1920px on the ARW files tested):
+going further would require full demosaicing.
 
-## Développer
+**Trash.** No silent permanent deletion. Photos first go through a review grid —
+every one is seen before anything moves, and any can be pulled out of the batch
+with one click. They're then moved to a local, timestamped trash folder with a
+manifest that restores them to their exact original location. The move is all or
+nothing: if one file fails, the whole batch is put back. Only explicitly emptying
+the trash deletes anything for real.
+
+## Developing
 
 ```sh
 npm install
-npm run tauri dev      # lance l'application
-npm run build          # vérifie les types et compile le frontend
-cargo test             # (dans src-tauri/) tests du backend
-npm run tauri build    # génère le paquet de distribution
+npm run tauri dev      # runs the app
+npm run build           # type-checks and builds the frontend
+cargo test               # (inside src-tauri/) backend tests
+npm run tauri build     # builds the distributable package
 ```
 
-Le pipeline de détection (hachage, empreinte perceptuelle, score de netteté,
-appariement raw/JPEG) est couvert par une suite de tests automatisés qui tourne avant
-chaque publication.
+The detection pipeline (hashing, perceptual fingerprinting, blur scoring,
+raw/JPEG pairing) is covered by an automated test suite that runs before every
+release.
 
 ## Stack
 
-Tauri 2 + React + TypeScript. Le backend Rust fait le scan, le hachage et l'analyse
-d'image (`walkdir`, `rayon`, `sha2`, `image`, `kamadak-exif`) ; le frontend ne fait que
-l'affichage. Interface en six langues (anglais, français, espagnol, allemand, japonais,
-chinois simplifié) via react-i18next, avec les polices embarquées : Schibsted Grotesk,
-Spline Sans Mono et Noto Sans JP/SC sous-ensemblées aux caractères de l'interface.
+Tauri 2 + React + TypeScript. The Rust backend does the scanning, hashing and
+image analysis (`walkdir`, `rayon`, `sha2`, `image`, `kamadak-exif`); the frontend
+only handles display. Interface in six languages (English, French, Spanish,
+German, Japanese, Simplified Chinese) via react-i18next, with embedded fonts:
+Schibsted Grotesk, Spline Sans Mono and Noto Sans JP/SC, subsetted to the
+interface's own character set.
 
 ## Formats
 
-JPEG, PNG, HEIC/HEIF, WebP, GIF, BMP, TIFF et les principaux formats raw (ARW, CR2,
-CR3, NEF, ORF, RW2, RAF, PEF, DNG…) sont analysés entièrement : doublons exacts,
-quasi-doublons et netteté.
+JPEG, PNG, HEIC/HEIF, WebP, GIF, BMP, TIFF and the main raw formats (ARW, CR2,
+CR3, NEF, ORF, RW2, RAF, PEF, DNG…) are fully analysed: exact duplicates,
+near-duplicates and sharpness alike.
 
-Le HEIC, format par défaut des iPhone, passe par un décodeur HEVC en Rust pur
-(crate `heic`) : aucune bibliothèque système à installer.
+HEIC, the default iPhone format, goes through a pure-Rust HEVC decoder (the `heic`
+crate): no system library to install.
 
-Les fichiers raw sont lus via la **rendition JPEG pleine taille** que leur conteneur
-embarque, bien plus rapide qu'un dématriçage, et fidèle à ce que le photographe a vu.
-Attention au piège : les données capteur contiennent régulièrement des séquences
-`FF D8 FF`, donc un candidat n'est retenu que si son en-tête JPEG s'analyse
-réellement ; choisir le plus gros bloc d'octets donne une image corrompue.
+Raw files are read through the **full-size JPEG rendition** their container
+embeds, far faster than demosaicing, and faithful to what the photographer saw at
+the time. Watch the trap: sensor data routinely contains `FF D8 FF` byte
+sequences, so a candidate is only accepted once its JPEG header actually parses —
+picking the largest byte block instead yields a corrupted image.
 
-Ni la webview macOS ni WebView2 ne savent afficher un raw, et Chromium ne lit pas le
-HEIC : ces fichiers reçoivent une vignette JPEG mise en cache (`app_cache_dir/previews`),
-que l'interface affiche à la place de l'original.
+Neither the macOS webview nor WebView2 can display a raw file, and Chromium
+doesn't read HEIC: these files get a cached JPEG thumbnail
+(`app_cache_dir/previews`) that the interface shows in place of the original.
 
-La taille capteur d'un raw vit dans des tags propriétaires que Sony, notamment,
-n'expose pas ; l'interface affiche donc le **format** (« ARW ») plutôt que des
-dimensions trompeuses. Un raw est toujours préféré à son export JPEG au moment de
-suggérer la version à conserver.
+A raw's sensor size lives in vendor tags that Sony, notably, doesn't expose, so
+the interface shows the **format** ("ARW") instead of misleading dimensions. A
+raw is always preferred over its JPEG export when suggesting which version to
+keep.
 
 ## Orientation
 
-Un appareil enregistre la photo dans le sens du capteur et note dans un tag EXIF
-comment le boîtier était tenu. Les navigateurs honorent ce tag pour les fichiers
-qu'ils chargent eux-mêmes, mais les vignettes que Skimrr encode (raw, HEIC) sont
-écrites sans EXIF : la rotation y est donc appliquée en dur. Le tag est également lu
-pour les conteneurs raw, dont Sony, qui ne passent pas par le lecteur EXIF générique.
+A camera records the photo in the sensor's own orientation and notes in an EXIF
+tag how the body was held. Browsers honour that tag for files they load
+themselves, but the thumbnails Skimrr encodes (raw, HEIC) are written without
+EXIF, so rotation is baked in directly. The tag is also read for raw containers,
+Sony's included, which don't go through the generic EXIF reader.
 
-La rotation est appliquée **avant** le calcul de l'empreinte perceptuelle et du score
-de netteté, sans quoi un portrait raw ne se regrouperait jamais avec son export
-redressé : deux orientations donnent deux empreintes sans rapport.
+Rotation is applied **before** computing the perceptual fingerprint and sharpness
+score — otherwise a raw portrait would never group with its straightened export:
+two orientations produce two unrelated fingerprints.
 
-## Limites connues
+## Known limits
 
-- **Date de prise de vue** : lue dans l'EXIF quand elle existe, sinon date de
-  modification du fichier.
-- **Grandes bibliothèques** : la comparaison des empreintes perceptuelles est
-  quadratique ; au-delà de quelques dizaines de milliers de photos, un index dédié
-  deviendra nécessaire.
-- **Linux** : le rendu WebKitGTK n'a pas encore été testé.
+- **Capture date**: read from EXIF when present, otherwise the file's
+  modification date.
+- **Large libraries**: perceptual-fingerprint comparison is quadratic; past a few
+  tens of thousands of photos, a dedicated index will become necessary.
+- **Linux**: WebKitGTK rendering hasn't been tested yet.
 
 ## Licence
 
-Code source visible à titre de transparence, tous droits réservés : pas de
-réutilisation, modification ou redistribution sans accord. Pour utiliser Skimrr,
-[téléchargez l'application](https://skimrr.com/download).
+Source shown for transparency, all rights reserved: no reuse, modification or
+redistribution without permission. To use Skimrr,
+[download the app](https://skimrr.com/download).
