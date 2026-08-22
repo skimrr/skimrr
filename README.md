@@ -136,5 +136,5 @@ two orientations produce two unrelated fingerprints.
 ## Licence
 
 Source shown for transparency, all rights reserved: no reuse, modification or
-redistribution without permission. To use Skimrr,
+redistribution without permission. See [LICENSE](LICENSE). To use Skimrr,
 [download the app](https://skimrr.com/download).
