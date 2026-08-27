@@ -48,7 +48,9 @@ jobs:
       # Store-ready MSIX, Store-signed on submission — no certificate purchase
       # needed. Kept as its own build (--no-bundle under the hood) rather than
       # reused from the NSIS build above, since MSIX needs its own manifest/assets.
-      - run: npm run tauri:windows:build
+      # --runner npm: the default runner shells out to `cargo tauri`, the Rust-side
+      # CLI, which isn't installed here (only the npm one, via @tauri-apps/cli).
+      - run: npm run tauri:windows:build -- --runner npm
 
       - uses: actions/upload-artifact@v4
         with:
