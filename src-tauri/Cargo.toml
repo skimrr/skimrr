@@ -49,4 +49,5 @@ candle-core = "0.11.0"
 candle-onnx = "0.11.0"
 candle-transformers = "0.11.0"
 candle-nn = "0.11.0"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 

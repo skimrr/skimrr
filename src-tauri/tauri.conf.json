@@ -41,6 +41,14 @@
     ],
     "resources": [
       "models/mobilenetv2.onnx"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      },
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      }
+    }
   }
 }
