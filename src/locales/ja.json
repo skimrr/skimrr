@@ -1,7 +1,7 @@
 {
   "tagline": "重複写真とピンボケ写真を、ローカルで検出。それだけ。",
   "home": {
-    "choose": "分析するフォルダを選ぶ",
+    "choose": "分析するフォルダを 1 つ以上選ぶ",
     "drop": "またはフォルダをここにドラッグ",
     "dropActive": "ドロップしてスキャンを開始",
     "privacy": "アカウント不要。写真がこのパソコンの外に出ることはありません。"
@@ -12,6 +12,7 @@
     "sharpness": "鮮明さと類似度を評価中…",
     "cancel": "停止",
     "again": "{{name}} を再度スキャン",
+    "againMany_other": "{{count}} 個のフォルダを再度スキャン",
     "offline": "{{count}} 枚の写真はクラウド上にありこの Mac には保存されていないため、スキップしました。Finder でダウンロードすると対象に含められます。",
     "offlineAsk": "{{count}} 枚の写真はクラウド上にあり、この Mac にはありません（{{size}}）。",
     "download": "ダウンロード",
@@ -20,7 +21,13 @@
   },
   "tabs": {
     "duplicates": "重複",
-    "blur": "ピンボケ"
+    "blur": "ピンボケ",
+    "addFolders": "フォルダ"
+  },
+  "addFolders": {
+    "intro": "現在分析中のフォルダです。追加すると同じスキャンに含まれます。すでに分析済みの写真は読み直されません。",
+    "action": "フォルダを追加",
+    "remove": "このフォルダをプロジェクトから削除"
   },
   "results": {
     "summary_other": "重複グループ {{count}} 件 · {{size}} 削減可能",
@@ -68,13 +75,14 @@
     "undo": "元に戻す"
   },
   "actions": {
-    "back": "別のフォルダを分析",
+    "back": "新しいプロジェクトを分析",
     "close": "閉じる"
   },
   "error": {
     "scan": "このフォルダの分析に失敗しました。",
     "trash": "一部の写真を移動できませんでした。",
-    "library": "このフォルダは管理された写真ライブラリです。Skimrr が内部を操作すると、アルバムや編集内容を損なうおそれがあります。まず元データを通常のフォルダへ書き出してから解析してください。"
+    "library": "このフォルダは管理された写真ライブラリです。Skimrr が内部を操作すると、アルバムや編集内容を損なうおそれがあります。まず元データを通常のフォルダへ書き出してから解析してください。",
+    "import": "一部の写真を「写真」に読み込めませんでした。"
   },
   "theme": {
     "auto": "テーマ：自動",
@@ -168,6 +176,7 @@
     "fit": "全体表示",
     "keep": "これを残す",
     "hint": "ズームはすべての画面に同時に効きます。矢印で移動、Enter で保持。",
+    "hintPlain": "ズームはすべての画面に同時に効きます。矢印で移動。",
     "open": "見比べる"
   },
   "days": {
@@ -177,7 +186,41 @@
     "clear": "すべて表示",
     "hint": "1 日以上を選ぶと、重複とぶれのタブをその範囲に絞れます。",
     "narrowed": "{{count}} 日に絞り込み中",
-    "undated": "日付なし"
+    "undated": "日付なし",
+    "select": "この日を選択",
+    "sortLabel": "日付で並び替え",
+    "sortAsc": "古い順",
+    "sortDesc": "新しい順",
+    "includePhotos": "この日付の「写真」も含める",
+    "includingPhotos": "確認中…",
+    "photosUnreadable": "「写真」を読み込めませんでした。システム設定 > プライバシーとセキュリティで Skimrr にフルディスクアクセスが許可されているか確認してください。",
+    "alsoInPhotos_other": "「写真」に既に {{count}} 枚あり",
+    "onlyInPhotos_other": "「写真」に既に {{count}} 枚",
+    "compareSelect": "比較用に選択",
+    "compareHint": "2枚以上の写真を選ぶと（左上のマーク）、並べて比較できます。",
+    "compareCount_other": "{{count}} 枚を選択中"
+  },
+  "fusion": {
+    "library": "写真ライブラリ",
+    "noLibrary": "ライブラリが見つかりません",
+    "changeLibrary": "変更",
+    "compare": "「写真」と比較",
+    "comparing": "比較中…",
+    "unreadable": "このライブラリを読み込めませんでした。システム設定 > プライバシーとセキュリティで Skimrr にフルディスクアクセスが許可されているか確認してください。",
+    "intro": "SD カードや素材フォルダを読み込む前に「写真」に既にあるものを確認し、重複を防ぎます。",
+    "alreadyKpi": "「写真」に既にあり",
+    "missingKpi": "読み込み対象",
+    "reclaimKpi": "元フォルダで削減可能",
+    "alreadyTitle": "「写真」に既にあり",
+    "missingTitle": "読み込み対象",
+    "alreadyNone": "このソースのものはまだ「写真」にありません。",
+    "missingNone": "すべて「写真」に既にあります。",
+    "cleanAction_other": "元フォルダから {{count}} 枚を整理",
+    "importAction_other": "{{count}} 枚を読み込み",
+    "importConfirmTitle_other": "{{count}} 枚の写真を「写真」に読み込みますか？",
+    "importConfirmBody_other": "下で確認してから読み込んでください。",
+    "importConfirmAction_other": "{{count}} 枚を読み込み",
+    "imported_other": "{{count}} 枚を「写真」に読み込みました"
   },
   "settings": {
     "title": "設定",

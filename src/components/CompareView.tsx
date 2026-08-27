@@ -23,9 +23,10 @@ export function CompareView({
   photos: Photo[];
   /** Positions within the group, in display order. */
   indices: number[];
-  /** Position of the photo currently marked as the keeper. */
-  kept: number;
-  onKeep: (position: number) => void;
+  /** Position of the photo currently marked as the keeper, when there is one — a
+      plain look-side-by-side session (e.g. from the Gallery) has no keeper at all. */
+  kept?: number;
+  onKeep?: (position: number) => void;
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -87,7 +88,7 @@ export function CompareView({
           setFocus((f) => Math.max(f - 1, 0));
           break;
         case "Enter":
-          if (shown[focus] !== undefined) onKeep(shown[focus]);
+          if (onKeep && shown[focus] !== undefined) onKeep(shown[focus]);
           break;
         case "+":
         case "=":
@@ -172,7 +173,7 @@ export function CompareView({
                 position === kept ? " keep" : ""
               }`}
               onClick={() => setFocus(slot)}
-              onDoubleClick={() => onKeep(position)}
+              onDoubleClick={() => onKeep?.(position)}
             >
               <span className="pane-stage">
                 <img
@@ -223,13 +224,15 @@ export function CompareView({
           </div>
         )}
         <span className="spacer" />
-        <span className="compare-hint">{t("compare.hint")}</span>
-        <button
-          className="btn-primary"
-          onClick={() => shown[focus] !== undefined && onKeep(shown[focus])}
-        >
-          {t("compare.keep")}
-        </button>
+        <span className="compare-hint">{t(onKeep ? "compare.hint" : "compare.hintPlain")}</span>
+        {onKeep && (
+          <button
+            className="btn-primary"
+            onClick={() => shown[focus] !== undefined && onKeep(shown[focus])}
+          >
+            {t("compare.keep")}
+          </button>
+        )}
       </footer>
     </div>
   );

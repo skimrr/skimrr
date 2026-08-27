@@ -1,8 +1,8 @@
 {
   "tagline": "Duplicados y fotos borrosas, detectados en local. Nada más.",
   "home": {
-    "choose": "Elegir una carpeta para analizar",
-    "drop": "o arrastra una carpeta aquí",
+    "choose": "Elegir una o varias carpetas para analizar",
+    "drop": "o arrastra carpetas aquí",
     "dropActive": "Suelta para iniciar el análisis",
     "privacy": "Sin cuenta. Tus fotos nunca salen de este ordenador."
   },
@@ -12,6 +12,8 @@
     "sharpness": "Evaluando nitidez y similitud…",
     "cancel": "Detener",
     "again": "Analizar {{name}} de nuevo",
+    "againMany_one": "Analizar {{count}} carpeta de nuevo",
+    "againMany_other": "Analizar {{count}} carpetas de nuevo",
     "offline": "{{count}} fotos están en la nube y no en este Mac, así que se omitieron. Descárgalas en el Finder para incluirlas.",
     "offlineAsk": "{{count}} fotos están en la nube y no en este Mac ({{size}}).",
     "download": "Descargarlas",
@@ -20,7 +22,13 @@
   },
   "tabs": {
     "duplicates": "Duplicados",
-    "blur": "Borrosas"
+    "blur": "Borrosas",
+    "addFolders": "Carpetas"
+  },
+  "addFolders": {
+    "intro": "Carpetas que se están analizando ahora. Añade más para incluirlas en el mismo análisis — las fotos ya analizadas no se vuelven a leer.",
+    "action": "Añadir carpetas",
+    "remove": "Quitar esta carpeta del proyecto"
   },
   "results": {
     "summary_one": "{{count}} grupo de duplicados · {{size}} recuperables",
@@ -78,13 +86,14 @@
     "undo": "Deshacer"
   },
   "actions": {
-    "back": "Analizar otra carpeta",
+    "back": "Analizar un nuevo proyecto",
     "close": "Cerrar"
   },
   "error": {
     "scan": "El análisis de esta carpeta falló.",
     "trash": "Algunas fotos no se pudieron mover.",
-    "library": "Esa carpeta es una fototeca gestionada. Skimrr no puede trabajar dentro sin arriesgar tus álbumes y ediciones. Exporta primero los originales a una carpeta normal y analiza esa."
+    "library": "Esa carpeta es una fototeca gestionada. Skimrr no puede trabajar dentro sin arriesgar tus álbumes y ediciones. Exporta primero los originales a una carpeta normal y analiza esa.",
+    "import": "Algunas fotos no se pudieron importar a Fotos."
   },
   "theme": {
     "auto": "Tema: automático",
@@ -181,6 +190,7 @@
     "fit": "Ajustar",
     "keep": "Conservar esta",
     "hint": "El zoom mueve todos los paneles a la vez. Flechas para moverte, Intro para conservar.",
+    "hintPlain": "El zoom mueve todos los paneles a la vez. Flechas para moverte.",
     "open": "Comparar"
   },
   "days": {
@@ -190,7 +200,50 @@
     "clear": "Mostrar todo",
     "hint": "Elige uno o varios días para limitar las pestañas de duplicados y borrosas.",
     "narrowed": "Limitado a {{count}} días",
-    "undated": "Sin fecha"
+    "undated": "Sin fecha",
+    "select": "Seleccionar este día",
+    "sortLabel": "Ordenar por fecha",
+    "sortAsc": "Más antiguas primero",
+    "sortDesc": "Más recientes primero",
+    "includePhotos": "Incluir Fotos para estas fechas",
+    "includingPhotos": "Comprobando…",
+    "photosUnreadable": "No se pudo leer Fotos. Comprueba que Skimrr tenga acceso total al disco en Ajustes del Sistema > Privacidad y seguridad.",
+    "alsoInPhotos_one": "+{{count}} ya en Fotos",
+    "alsoInPhotos_other": "+{{count}} ya en Fotos",
+    "onlyInPhotos_one": "{{count}} foto ya en Fotos",
+    "onlyInPhotos_other": "{{count}} fotos ya en Fotos",
+    "compareSelect": "Seleccionar para comparar",
+    "compareHint": "Elige dos o más fotos (la marca en la esquina superior izquierda) para compararlas una junto a otra.",
+    "compareCount_one": "{{count}} foto seleccionada",
+    "compareCount_other": "{{count}} fotos seleccionadas"
+  },
+  "fusion": {
+    "library": "Fototeca",
+    "noLibrary": "No se detectó ninguna fototeca",
+    "changeLibrary": "Cambiar",
+    "compare": "Comparar con Fotos",
+    "comparing": "Comparando…",
+    "unreadable": "No se pudo leer esta fototeca. Comprueba que Skimrr tenga acceso total al disco en Ajustes del Sistema > Privacidad y seguridad.",
+    "intro": "Comprueba qué hay ya en Fotos antes de importar una tarjeta SD o una carpeta de material en bruto, para no duplicar nada.",
+    "alreadyKpi": "Ya en Fotos",
+    "missingKpi": "Por importar",
+    "reclaimKpi": "Recuperable de la fuente",
+    "alreadyTitle": "Ya en Fotos",
+    "missingTitle": "Por importar",
+    "alreadyNone": "Nada de esta fuente está todavía en Fotos.",
+    "missingNone": "Todo está ya en Fotos.",
+    "cleanAction_one": "Quitar {{count}} foto de la fuente",
+    "cleanAction_other": "Quitar {{count}} fotos de la fuente",
+    "importAction_one": "Importar {{count}} foto",
+    "importAction_other": "Importar {{count}} fotos",
+    "importConfirmTitle_one": "¿Importar esta foto a Fotos?",
+    "importConfirmTitle_other": "¿Importar estas {{count}} fotos a Fotos?",
+    "importConfirmBody_one": "Revísala abajo antes de importar.",
+    "importConfirmBody_other": "Revísalas abajo antes de importar.",
+    "importConfirmAction_one": "Importar {{count}} foto",
+    "importConfirmAction_other": "Importar {{count}} fotos",
+    "imported_one": "{{count}} foto importada a Fotos",
+    "imported_other": "{{count}} fotos importadas a Fotos"
   },
   "settings": {
     "title": "Ajustes",

@@ -672,6 +672,32 @@ input[type="range"]::-moz-range-thumb {
 .review-cell.excluded .review-thumb img {
   filter: grayscale(1) brightness(0.65);
 }
+/* A second, independent pick — for comparing photos side by side — living in the
+   opposite corner from .review-mark so the two never collide. Always faintly visible
+   (not hover-only) since it is the only hint this exists at all. */
+.review-pick {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid var(--line);
+  color: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+.review-pick svg { width: 0.8rem; height: 0.8rem; }
+.review-cell:hover .review-pick { border-color: var(--muted); }
+.review-pick.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
 .review-cell.excluded .review-name,
 .review-cell.excluded .review-size {
   text-decoration: line-through;
@@ -727,6 +753,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
+  margin-top: 1.2rem;
 }
 
 /* ---- undo toast ---- */
@@ -1249,7 +1276,7 @@ input[type="range"]::-moz-range-thumb {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem 1rem;
-  margin: 0.9rem 0 0;
+  margin: 0.9rem 0 1.3rem;
   padding: 0.7rem 0.9rem;
   font-size: 0.85rem;
   color: var(--ink);
@@ -1424,11 +1451,7 @@ input[type="range"]::-moz-range-thumb {
 @media (min-width: 46rem) { .day-list { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 74rem) { .day-list { grid-template-columns: repeat(3, 1fr); } }
 .day {
-  display: grid;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 0.7rem;
-  text-align: left;
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1439,6 +1462,44 @@ input[type="range"]::-moz-range-thumb {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
+.day-open {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem;
+  text-align: left;
+}
+/* Room for the check mark so it never sits over the date/count text. */
+.day:not(.day-photos-only) .day-open { padding-right: 2.6rem; }
+.day-check {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: transparent;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+.day-check svg { width: 0.95rem; height: 0.95rem; }
+.day-check:hover { border-color: var(--muted); }
+.day-check.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.btn-photos { display: inline-flex; align-items: center; gap: 0.45rem; }
+.btn-photos svg { width: 1rem; height: 1rem; flex: none; }
+
+.btn-sort { display: inline-flex; align-items: center; gap: 0.4rem; }
+.btn-sort svg { width: 1rem; height: 1rem; flex: none; transition: transform 200ms ease; }
+.btn-sort.desc svg { transform: rotate(180deg); }
 /* Four covers, always the same shape, so a day of portraits does not tower over a
    day of landscapes and break the row. */
 .day-covers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
@@ -1453,3 +1514,71 @@ input[type="range"]::-moz-range-thumb {
 .day-label { font-size: 0.88rem; font-weight: 500; }
 .day-facts { font-size: 0.72rem; color: var(--muted); }
 .notice .btn-ghost { margin-left: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem; }
+
+.fusion { display: grid; gap: 1.1rem; margin-top: 1.3rem; }
+.fusion-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.fusion-library { display: grid; gap: 0.1rem; margin-right: auto; min-width: 0; }
+.fusion-library-label { font-size: 0.72rem; color: var(--muted); }
+.fusion-library-path {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fusion-error { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.fusion-intro { font-size: 0.9rem; color: var(--muted); max-width: 40rem; }
+.fusion-panel { display: grid; gap: 0.9rem; }
+.fusion-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.fusion-panel-head h2 { margin-bottom: 0; }
+.fusion-empty { font-size: 0.85rem; color: var(--muted); }
+
+.add-folders { display: grid; gap: 1rem; margin-top: 1.3rem; max-width: 40rem; }
+.add-folders-intro { font-size: 0.9rem; color: var(--muted); }
+.add-folders-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.add-folders-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.6rem 0.6rem 0.8rem;
+  font-size: 0.82rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.add-folders-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.add-folders-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  transition: color 150ms ease, background-color 150ms ease;
+}
+.add-folders-remove svg { width: 0.85rem; height: 0.85rem; }
+.add-folders-remove:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.add-folders .btn-primary { justify-self: start; }

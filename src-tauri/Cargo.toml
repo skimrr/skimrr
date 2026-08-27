@@ -6,6 +6,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Every scan is CPU-bound (decode, hash, cluster) on the user's own machine, and this
+# is the only binary that ships — so the extra link time buys real runtime speed with
+# no downside. `strip` also trims the shipped binary.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.

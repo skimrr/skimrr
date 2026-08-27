@@ -11,7 +11,7 @@ import { BlurTab } from "./components/BlurTab";
 import { StatsTab } from "./components/StatsTab";
 import { DaysTab, Day } from "./components/DaysTab";
 import { TrashScreen } from "./components/TrashScreen";
-import { ConfirmModal, EmptyTrashModal, UndoToast } from "./components/Overlays";
+import { ConfirmModal, DayGridModal, EmptyTrashModal, UndoToast } from "./components/Overlays";
 import { Lightbox } from "./components/Lightbox";
 import { CompareView } from "./components/CompareView";
 import { Guide } from "./components/Guide";
@@ -59,6 +59,21 @@ function blurRangeFor(scores: number[]): {
   };
 }
 
+/** Mirrors the Rust side's own `day_key`: local calendar date, zero-padded, so a
+    photo's `taken` timestamp groups under exactly the same key its Day card uses. */
+function dayKeyOf(unixSeconds: number): string {
+  const d = new Date(unixSeconds * 1000);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Same formatting DaysTab uses for a day's own label, for the grid modal's title. */
+function formatDayLabel(key: string, lang: string): string {
+  return new Intl.DateTimeFormat(lang, { dateStyle: "full" }).format(new Date(`${key}T12:00:00`));
+}
+
 function Wordmark({ className }: { className?: string }) {
   return (
     <span className={className}>
@@ -82,6 +97,23 @@ function DropIcon() {
       <path d="M12 3v9" />
       <path d="M8.5 8.5 12 12l3.5-3.5" />
       <path d="M4.5 13.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 6l12 12M18 6 6 18" />
     </svg>
   );
 }
@@ -110,7 +142,7 @@ export default function App() {
   const [progress, setProgress] = useState({ done: 0, total: 0, phase: 1 });
   const [view, setView] = useState<View | null>(null);
   const [kept, setKept] = useState<number[]>([]);
-  const [tab, setTab] = useState<"days" | "duplicates" | "blur" | "stats">("days");
+  const [tab, setTab] = useState<"days" | "duplicates" | "blur" | "addFolders" | "stats">("days");
   const [simThreshold, setSimThreshold] = useState(DEFAULT_SIM_THRESHOLD);
   const [blurThreshold, setBlurThreshold] = useState(0);
   const [blurMax, setBlurMax] = useState(100);
@@ -119,6 +151,9 @@ export default function App() {
   const [pendingTrash, setPendingTrash] = useState<Photo[] | null>(null);
   const [batches, setBatches] = useState<TrashBatch[]>([]);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
+  /* Resolved once at startup: which Photos library the Gallery tab's "include Photos"
+     choice checks against. */
+  const [libraryPath, setLibraryPath] = useState<string | null>(null);
   /* Which photos the viewer is stepping through, and where it sits. `group` is set
      only when opened from a duplicate group, which is where "keep this one" applies. */
   const [viewer, setViewer] = useState<{
@@ -126,14 +161,45 @@ export default function App() {
     at: number;
     group?: number;
   } | null>(null);
+  /* A day's photos, opened from the Gallery tab as a grid first — the contact-sheet
+     view lets you see the whole day before committing to one photo full-screen.
+     `dayGrid` holds that grid; `dayViewer` (opened from a click inside it, stacked on
+     top rather than replacing it) is the full-screen step. Neither has a "keep this
+     one" — there is no duplicate group here — and the photos come straight from the
+     caller rather than indices into `view.photos`, since a Photos-library day has no
+     place in that array at all. */
+  const [dayGrid, setDayGrid] = useState<{ title: string; photos: Photo[] } | null>(null);
+  const [dayViewer, setDayViewer] = useState<{ photos: Photo[]; at: number } | null>(null);
+  /* Two or more photos picked in the day grid, for a side-by-side look — the same
+     CompareView the Duplicates tab uses, but with no "keep" action of its own. */
+  const [dayCompare, setDayCompare] = useState<Photo[] | null>(null);
   const [toast, setToast] = useState<TrashResult | null>(null);
-  const [lastFolder, setLastFolder] = useState<string | null>(
-    () => localStorage.getItem("skimrr-last-folder"),
-  );
+  const [lastFolders, setLastFolders] = useState<string[] | null>(() => {
+    try {
+      const raw = localStorage.getItem("skimrr-last-folders");
+      return raw ? (JSON.parse(raw) as string[]) : null;
+    } catch {
+      return null;
+    }
+  });
   const [dropping, setDropping] = useState(false);
   /** Group being examined side by side, or null. */
   const [comparing, setComparing] = useState<number | null>(null);
   const [days, setDays] = useState<Day[]>([]);
+  /** Same shape, but from the Destination library, scoped to exactly the Source
+      scan's own days — shown alongside `days` in the Gallery tab so a day can be
+      recognised as "already safe" without opening Import. An explicit choice
+      (`includePhotosInGallery`), not automatic: nobody asking "what do I already have
+      from this trip" wants the whole library's history pulled in unasked. */
+  const [photosDays, setPhotosDays] = useState<Day[]>([]);
+  const [photosDaysLoading, setPhotosDaysLoading] = useState(false);
+  /** Distinct from `photosDays.length > 0`: a real check that found nothing must not
+      look the same as "never checked". */
+  const [photosDaysChecked, setPhotosDaysChecked] = useState(false);
+  /** A failed check (most commonly: no Full Disk Access yet) used to look identical to
+      "checked, found nothing" — silent, with no way to tell the two apart from the
+      button alone. This makes the failure itself visible. */
+  const [photosDaysError, setPhotosDaysError] = useState(false);
   /** Days the work is narrowed to; empty means the whole folder. */
   const [pickedDays, setPickedDays] = useState<Set<string>>(new Set());
   /** Files the scan could not read because their contents live in the cloud. */
@@ -163,6 +229,18 @@ export default function App() {
      customer was about to move instead of making them start over. */
   const [askLicence, setAskLicence] = useState<Photo[] | null>(null);
 
+  useEffect(() => {
+    invoke<string | null>("default_photos_library_path")
+      .then(setLibraryPath)
+      .catch(() => undefined);
+  }, []);
+
+  /* Decoupled from the scan flow on purpose: the default library path resolves
+     asynchronously (a moment after mount), so a scan started before it lands would
+     otherwise never pick up the Gallery's Photos-side days. Refetching whenever
+     either changes covers that race, and also covers picking a different library
+     from the Import tab after a scan is already showing. Failures (no Full Disk
+     Access, no library) just leave the Photos side of the Gallery empty. */
   useEffect(() => {
     invoke<Licence>("licence_status")
       .then(setLicence)
@@ -229,9 +307,9 @@ export default function App() {
 
   async function chooseFolder() {
     setError(null);
-    const folder = await open({ directory: true });
-    if (!folder) return;
-    await scanPath(folder);
+    const folders = await open({ directory: true, multiple: true });
+    if (!folders || folders.length === 0) return;
+    await scanFolders(folders);
   }
 
   /* Returning home is immediate: the running scan is told to stop, and its result is
@@ -246,7 +324,7 @@ export default function App() {
       await invoke<number>("download_offline");
       setDownloading(null);
       setOffline(0);
-      await scanPath(lastFolder ?? "");
+      await scanFolders(lastFolders ?? []);
     } catch (e) {
       setDownloading(null);
       const m = /^stalled:(\d+)/.exec(String(e));
@@ -273,17 +351,20 @@ export default function App() {
     invoke("cancel_scan").catch(() => undefined);
   }
 
-  async function scanPath(folder: string) {
+  async function scanFolders(folders: string[]) {
+    if (folders.length === 0) return;
     setError(null);
-    setLastFolder(folder);
-    localStorage.setItem("skimrr-last-folder", folder);
+    setLastFolders(folders);
+    localStorage.setItem("skimrr-last-folders", JSON.stringify(folders));
     const token = ++scanToken.current;
+    setPhotosDays([]);
+    setPhotosDaysChecked(false);
     setOffline(0);
     setProgress({ done: 0, total: 0, phase: 1 });
     setScreen("scanning");
     setToast(null);
     try {
-      await invoke<number>("scan_folder", { path: folder });
+      await invoke<number>("scan_folder", { paths: folders });
       if (token !== scanToken.current) return;
       setPickedDays(new Set());
       setDays(await invoke<Day[]>("days").catch(() => []));
@@ -319,8 +400,8 @@ export default function App() {
         else if (event.payload.type === "leave") setDropping(false);
         else if (event.payload.type === "drop") {
           setDropping(false);
-          const first = event.payload.paths?.[0];
-          if (first && screenRef.current !== "scanning") void scanPath(first);
+          const dropped = event.payload.paths ?? [];
+          if (dropped.length > 0 && screenRef.current !== "scanning") void scanFolders(dropped);
         }
       });
     } catch {
@@ -465,6 +546,74 @@ export default function App() {
     else setAskLicence(photos);
   }
 
+  /** Adds more Source folders to the scan already on screen: re-scans the union of
+      the previous folders and the newly picked ones. The scan cache is keyed per
+      file (not per folder combination), so everything already analysed is reused —
+      only files under the newly added folder(s) actually cost anything. */
+  async function addFolders() {
+    const picked = await open({ directory: true, multiple: true });
+    if (!picked || picked.length === 0) return;
+    const union = [...new Set([...(lastFolders ?? []), ...picked])];
+    await scanFolders(union);
+  }
+
+  /** Drops one Source folder and re-scans the rest — the mirror of addFolders. Never
+      leaves the project empty, so the cross is withheld when only one folder remains. */
+  async function removeFolder(folder: string) {
+    const next = (lastFolders ?? []).filter((f) => f !== folder);
+    if (next.length === 0) return;
+    await scanFolders(next);
+  }
+
+  /** Explicit choice, from the Gallery tab: only the Source scan's own days, never
+      the whole library — see the note on `photosDays` for why. */
+  async function includePhotosInGallery() {
+    if (!libraryPath || days.length === 0) return;
+    setPhotosDaysLoading(true);
+    setPhotosDaysError(false);
+    try {
+      const result = await invoke<Day[]>("photos_days", {
+        libraryPath,
+        onlyDates: days.map((d) => d.key),
+      });
+      setPhotosDays(result);
+      setPhotosDaysChecked(true);
+    } catch {
+      setPhotosDays([]);
+      setPhotosDaysError(true);
+    } finally {
+      setPhotosDaysLoading(false);
+    }
+  }
+
+  /** Opens a Gallery day's own photos. Source photos are already in `view.photos` —
+      no request needed, just a client-side filter by the same day key the card shows.
+      A day with no Source photos (Photos-library only) has nothing to filter, so it
+      falls back to fetching that one day's detail on demand — still no iCloud
+      download, `photos_day_detail` only ever reads already-cached thumbnails. */
+  async function openDay(key: string) {
+    if (!view) return;
+    const title = formatDayLabel(key, lang);
+    const sourcePhotos = view.photos.filter((p) => dayKeyOf(p.taken) === key);
+
+    // A day's card can combine Source and Photos-library covers once "Inclure
+    // Photos" has matched it — the grid it opens must show the same combined set,
+    // not just the Source half, or the two disagree about what that day contains.
+    let photosLibraryPhotos: Photo[] = [];
+    if (libraryPath && photosDays.some((d) => d.key === key)) {
+      try {
+        photosLibraryPhotos = await invoke<Photo[]>("photos_day_detail", { libraryPath, date: key });
+      } catch {
+        // Missing the Photos-side detail is not a reason to hide the Source photos.
+      }
+    }
+
+    const combined = [...sourcePhotos, ...photosLibraryPhotos];
+    if (combined.length === 0) return;
+    setViewer(null);
+    setDayGrid({ title, photos: combined });
+  }
+
   function trashGroup(groupIndex: number) {
     if (!view) return;
     const group = view.groups[groupIndex];
@@ -542,9 +691,13 @@ export default function App() {
               {t("home.choose")}
             </button>
           </div>
-          {lastFolder && (
-            <button className="btn-quiet" onClick={() => scanPath(lastFolder)}>
-              {t("scan.again", { name: lastFolder.split("/").pop() || lastFolder })}
+          {lastFolders && lastFolders.length > 0 && (
+            <button className="btn-quiet" onClick={() => scanFolders(lastFolders)}>
+              {lastFolders.length === 1
+                ? t("scan.again", {
+                    name: lastFolders[0].split("/").pop() || lastFolders[0],
+                  })
+                : t("scan.againMany", { count: lastFolders.length })}
             </button>
           )}
           <p className="privacy">{t("home.privacy")}</p>
@@ -654,6 +807,12 @@ export default function App() {
               {t("tabs.blur")}
               <span className="count mono">{blurCount}</span>
             </button>
+            <button
+              className={`tab${tab === "addFolders" ? " on" : ""}`}
+              onClick={() => setTab("addFolders")}
+            >
+              {t("tabs.addFolders")}
+            </button>
 
             <button
               className={`tab${tab === "stats" ? " on" : ""}`}
@@ -677,6 +836,13 @@ export default function App() {
           {tab === "days" && (
             <DaysTab
               days={days}
+              photosDays={photosDays}
+              canIncludePhotos={!!libraryPath}
+              photosIncluded={photosDaysChecked}
+              photosLoading={photosDaysLoading}
+              photosError={photosDaysError}
+              onIncludePhotos={includePhotosInGallery}
+              onOpenDay={openDay}
               selected={pickedDays}
               onToggle={toggleDay}
               onClear={clearDays}
@@ -730,6 +896,34 @@ export default function App() {
               onTrashSelected={trashBlurSelection}
               onExpand={(indices, at) => setViewer({ indices, at })}
             />
+          )}
+
+          {tab === "addFolders" && (
+            <div className="add-folders">
+              <p className="add-folders-intro">{t("addFolders.intro")}</p>
+              <ul className="add-folders-list">
+                {(lastFolders ?? []).map((folder) => (
+                  <li key={folder} className="add-folders-item">
+                    <span className="mono" title={folder}>
+                      {folder}
+                    </span>
+                    {(lastFolders ?? []).length > 1 && (
+                      <button
+                        className="add-folders-remove"
+                        onClick={() => removeFolder(folder)}
+                        aria-label={t("addFolders.remove")}
+                        title={t("addFolders.remove")}
+                      >
+                        <CloseIcon />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <button className="btn-primary" onClick={addFolders}>
+                {t("addFolders.action")}
+              </button>
+            </div>
           )}
         </main>
       )}
@@ -812,6 +1006,33 @@ export default function App() {
           isKept={
             viewer.group !== undefined && kept[viewer.group] === viewer.at
           }
+        />
+      )}
+
+      {dayGrid && (
+        <DayGridModal
+          title={dayGrid.title}
+          photos={dayGrid.photos}
+          onSelect={(at) => setDayViewer({ photos: dayGrid.photos, at })}
+          onCompare={setDayCompare}
+          onClose={() => setDayGrid(null)}
+        />
+      )}
+
+      {dayCompare && (
+        <CompareView
+          photos={dayCompare}
+          indices={dayCompare.map((_, i) => i)}
+          onClose={() => setDayCompare(null)}
+        />
+      )}
+
+      {dayViewer && (
+        <Lightbox
+          photos={dayViewer.photos}
+          index={dayViewer.at}
+          onIndex={(at) => setDayViewer({ ...dayViewer, at })}
+          onClose={() => setDayViewer(null)}
         />
       )}
 

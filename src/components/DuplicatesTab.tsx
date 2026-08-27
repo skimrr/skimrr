@@ -90,7 +90,7 @@ export function DuplicatesTab({
                     >
                       <span className="thumb">
                         <img
-                          src={convertFileSrc(photo.preview)}
+                          src={convertFileSrc(photo.thumb ?? photo.preview)}
                           alt={photo.name}
                           loading="lazy"
                           decoding="async"

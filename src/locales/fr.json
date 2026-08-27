@@ -1,8 +1,8 @@
 {
   "tagline": "Doublons et photos floues, repérés en local. Rien d'autre.",
   "home": {
-    "choose": "Choisir un dossier à analyser",
-    "drop": "ou glissez un dossier ici",
+    "choose": "Choisir un ou plusieurs dossiers à analyser",
+    "drop": "ou glissez un ou plusieurs dossiers ici",
     "dropActive": "Relâchez pour lancer l'analyse",
     "privacy": "Pas de compte. Vos photos ne quittent jamais cet ordinateur."
   },
@@ -12,6 +12,8 @@
     "sharpness": "Évaluation de la netteté et des similitudes…",
     "cancel": "Arrêter",
     "again": "Analyser à nouveau {{name}}",
+    "againMany_one": "Analyser à nouveau {{count}} dossier",
+    "againMany_other": "Analyser à nouveau {{count}} dossiers",
     "offline": "{{count}} photos sont dans le nuage et non sur ce Mac : elles ont été ignorées. Téléchargez-les depuis le Finder pour les inclure.",
     "offlineAsk": "{{count}} photos sont dans le nuage et non sur ce Mac ({{size}}).",
     "download": "Les télécharger",
@@ -20,7 +22,13 @@
   },
   "tabs": {
     "duplicates": "Doublons",
-    "blur": "Flou"
+    "blur": "Flou",
+    "addFolders": "Dossiers"
+  },
+  "addFolders": {
+    "intro": "Dossiers actuellement analysés. Ajoutez-en d'autres pour les inclure dans ce même scan — les photos déjà analysées ne sont pas relues.",
+    "action": "Ajouter des dossiers",
+    "remove": "Retirer ce dossier du projet"
   },
   "results": {
     "summary_one": "{{count}} groupe de doublons · {{size}} récupérables",
@@ -78,13 +86,14 @@
     "undo": "Annuler"
   },
   "actions": {
-    "back": "Analyser un autre dossier",
+    "back": "Analyser un nouveau projet",
     "close": "Fermer"
   },
   "error": {
     "scan": "L'analyse de ce dossier a échoué.",
     "trash": "Certaines photos n'ont pas pu être déplacées.",
-    "library": "Ce dossier est une photothèque gérée. Skimrr ne peut pas y travailler sans risquer vos albums et vos retouches. Exportez d'abord les originaux vers un dossier ordinaire, puis analysez celui-ci."
+    "library": "Ce dossier est une photothèque gérée. Skimrr ne peut pas y travailler sans risquer vos albums et vos retouches. Exportez d'abord les originaux vers un dossier ordinaire, puis analysez celui-ci.",
+    "import": "Certaines photos n'ont pas pu être importées dans Photos."
   },
   "theme": {
     "auto": "Thème : auto",
@@ -181,6 +190,7 @@
     "fit": "Ajuster",
     "keep": "Conserver celle-ci",
     "hint": "Le zoom déplace toutes les vues ensemble. Flèches pour circuler, Entrée pour conserver.",
+    "hintPlain": "Le zoom déplace toutes les vues ensemble. Flèches pour circuler.",
     "open": "Comparer"
   },
   "days": {
@@ -190,7 +200,50 @@
     "clear": "Tout afficher",
     "hint": "Choisissez un ou plusieurs jours pour y restreindre les onglets Doublons et Flou.",
     "narrowed": "Restreint à {{count}} jours",
-    "undated": "Sans date"
+    "undated": "Sans date",
+    "select": "Sélectionner ce jour",
+    "sortLabel": "Trier par date",
+    "sortAsc": "Plus ancien d'abord",
+    "sortDesc": "Plus récent d'abord",
+    "includePhotos": "Inclure Photos pour ces dates",
+    "includingPhotos": "Vérification…",
+    "photosUnreadable": "Impossible de lire Photos. Vérifiez que Skimrr a l'accès complet au disque dans Réglages Système > Confidentialité et sécurité.",
+    "alsoInPhotos_one": "+{{count}} déjà dans Photos",
+    "alsoInPhotos_other": "+{{count}} déjà dans Photos",
+    "onlyInPhotos_one": "{{count}} photo déjà dans Photos",
+    "onlyInPhotos_other": "{{count}} photos déjà dans Photos",
+    "compareSelect": "Sélectionner pour comparer",
+    "compareHint": "Choisissez deux photos ou plus (le repère en haut à gauche) pour les comparer côte à côte.",
+    "compareCount_one": "{{count}} photo sélectionnée",
+    "compareCount_other": "{{count}} photos sélectionnées"
+  },
+  "fusion": {
+    "library": "Photothèque",
+    "noLibrary": "Aucune photothèque détectée",
+    "changeLibrary": "Changer",
+    "compare": "Comparer avec Photos",
+    "comparing": "Comparaison en cours…",
+    "unreadable": "Impossible de lire cette photothèque. Vérifiez que Skimrr a l'accès complet au disque dans Réglages Système > Confidentialité et sécurité.",
+    "intro": "Vérifiez ce qui est déjà dans Photos avant d'importer une carte SD ou un dossier de rushs, pour ne rien dupliquer.",
+    "alreadyKpi": "Déjà dans Photos",
+    "missingKpi": "À importer",
+    "reclaimKpi": "Récupérable de la source",
+    "alreadyTitle": "Déjà dans Photos",
+    "missingTitle": "À importer",
+    "alreadyNone": "Rien de cette source n'est encore dans Photos.",
+    "missingNone": "Tout est déjà dans Photos.",
+    "cleanAction_one": "Nettoyer {{count}} photo de la source",
+    "cleanAction_other": "Nettoyer {{count}} photos de la source",
+    "importAction_one": "Importer {{count}} photo",
+    "importAction_other": "Importer {{count}} photos",
+    "importConfirmTitle_one": "Importer cette photo dans Photos ?",
+    "importConfirmTitle_other": "Importer ces {{count}} photos dans Photos ?",
+    "importConfirmBody_one": "Vérifiez-la ci-dessous avant l'import.",
+    "importConfirmBody_other": "Vérifiez-les ci-dessous avant l'import.",
+    "importConfirmAction_one": "Importer {{count}} photo",
+    "importConfirmAction_other": "Importer {{count}} photos",
+    "imported_one": "{{count}} photo importée dans Photos",
+    "imported_other": "{{count}} photos importées dans Photos"
   },
   "settings": {
     "title": "Réglages",

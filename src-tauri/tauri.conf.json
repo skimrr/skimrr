@@ -49,6 +49,9 @@
       "webviewInstallMode": {
         "type": "offlineInstaller"
       }
+    },
+    "macOS": {
+      "signingIdentity": "A358CF7E3F953F4D1A3323A06788456444E16937"
     }
   }
 }

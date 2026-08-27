@@ -63,7 +63,7 @@ export function BlurTab({
         title={`${photo.name}, ${t("viewer.sharpness")} ${Math.round(score)}`}
       >
         <img
-          src={convertFileSrc(photo.preview)}
+          src={convertFileSrc(photo.thumb ?? photo.preview)}
           alt={photo.name}
           loading="lazy"
           decoding="async"

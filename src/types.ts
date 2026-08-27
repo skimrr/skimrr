@@ -8,6 +8,11 @@ export interface Photo {
   blur: number | null;
   /** What the webview can display: the file itself, or a cached rendition. */
   preview: string;
+  /** A much smaller rendition for grid cells — use this over `preview` wherever a
+      photo is shown small (a cover, a review grid), falling back to `preview` when
+      absent (an older cache entry, or a Photos-library photo, whose own cached
+      derivative is already thumbnail-sized). Never use it for a full-screen view. */
+  thumb: string | null;
   /** Uppercase extension for camera raw files (ARW, CR2…), else null. */
   kind: string | null;
 }
@@ -31,6 +36,11 @@ export interface View {
 export interface TrashResult {
   batch_id: string;
   count: number;
+}
+
+export interface PhotosComparison {
+  already_in_photos: string[];
+  missing_from_photos: string[];
 }
 
 export interface TrashedPhoto {

@@ -1,8 +1,8 @@
 {
   "tagline": "Duplikate und unscharfe Fotos, lokal erkannt. Sonst nichts.",
   "home": {
-    "choose": "Ordner zum Analysieren wählen",
-    "drop": "oder einen Ordner hierher ziehen",
+    "choose": "Einen oder mehrere Ordner zum Analysieren wählen",
+    "drop": "oder Ordner hierher ziehen",
     "dropActive": "Loslassen, um den Scan zu starten",
     "privacy": "Kein Konto. Deine Fotos verlassen diesen Rechner nie."
   },
@@ -12,6 +12,8 @@
     "sharpness": "Bewertung von Schärfe und Ähnlichkeit …",
     "cancel": "Stoppen",
     "again": "{{name}} erneut scannen",
+    "againMany_one": "{{count}} Ordner erneut scannen",
+    "againMany_other": "{{count}} Ordner erneut scannen",
     "offline": "{{count}} Fotos liegen in der Cloud und nicht auf diesem Mac und wurden übersprungen. Lade sie im Finder herunter, um sie einzubeziehen.",
     "offlineAsk": "{{count}} Fotos liegen in der Cloud und nicht auf diesem Mac ({{size}}).",
     "download": "Herunterladen",
@@ -20,7 +22,13 @@
   },
   "tabs": {
     "duplicates": "Duplikate",
-    "blur": "Unscharf"
+    "blur": "Unscharf",
+    "addFolders": "Ordner"
+  },
+  "addFolders": {
+    "intro": "Aktuell analysierte Ordner. Füge weitere hinzu, um sie in denselben Scan einzubeziehen — bereits analysierte Fotos werden nicht erneut gelesen.",
+    "action": "Ordner hinzufügen",
+    "remove": "Diesen Ordner aus dem Projekt entfernen"
   },
   "results": {
     "summary_one": "{{count}} Duplikat-Gruppe · {{size}} einsparbar",
@@ -78,13 +86,14 @@
     "undo": "Rückgängig"
   },
   "actions": {
-    "back": "Anderen Ordner analysieren",
+    "back": "Neues Projekt analysieren",
     "close": "Schließen"
   },
   "error": {
     "scan": "Die Analyse dieses Ordners ist fehlgeschlagen.",
     "trash": "Einige Fotos konnten nicht verschoben werden.",
-    "library": "Dieser Ordner ist eine verwaltete Fotomediathek. Skimrr kann darin nicht arbeiten, ohne deine Alben und Bearbeitungen zu gefährden. Exportiere die Originale zuerst in einen normalen Ordner."
+    "library": "Dieser Ordner ist eine verwaltete Fotomediathek. Skimrr kann darin nicht arbeiten, ohne deine Alben und Bearbeitungen zu gefährden. Exportiere die Originale zuerst in einen normalen Ordner.",
+    "import": "Einige Fotos konnten nicht in Fotos importiert werden."
   },
   "theme": {
     "auto": "Design: automatisch",
@@ -181,6 +190,7 @@
     "fit": "Einpassen",
     "keep": "Diese behalten",
     "hint": "Der Zoom bewegt alle Ansichten zugleich. Pfeile zum Wechseln, Enter zum Behalten.",
+    "hintPlain": "Der Zoom bewegt alle Ansichten zugleich. Pfeile zum Wechseln.",
     "open": "Vergleichen"
   },
   "days": {
@@ -190,7 +200,50 @@
     "clear": "Alles zeigen",
     "hint": "Wähle einen oder mehrere Tage, um die Reiter Duplikate und Unscharf darauf zu beschränken.",
     "narrowed": "Beschränkt auf {{count}} Tage",
-    "undated": "Ohne Datum"
+    "undated": "Ohne Datum",
+    "select": "Diesen Tag auswählen",
+    "sortLabel": "Nach Datum sortieren",
+    "sortAsc": "Älteste zuerst",
+    "sortDesc": "Neueste zuerst",
+    "includePhotos": "Fotos für diese Tage einbeziehen",
+    "includingPhotos": "Wird geprüft…",
+    "photosUnreadable": "Fotos konnte nicht gelesen werden. Prüfe, ob Skimrr in den Systemeinstellungen unter Datenschutz & Sicherheit vollen Festplattenzugriff hat.",
+    "alsoInPhotos_one": "+{{count}} schon in Fotos",
+    "alsoInPhotos_other": "+{{count}} schon in Fotos",
+    "onlyInPhotos_one": "{{count}} Foto schon in Fotos",
+    "onlyInPhotos_other": "{{count}} Fotos schon in Fotos",
+    "compareSelect": "Zum Vergleichen auswählen",
+    "compareHint": "Wähle zwei oder mehr Fotos aus (die Markierung oben links), um sie nebeneinander zu vergleichen.",
+    "compareCount_one": "{{count}} Foto ausgewählt",
+    "compareCount_other": "{{count}} Fotos ausgewählt"
+  },
+  "fusion": {
+    "library": "Fotomediathek",
+    "noLibrary": "Keine Mediathek gefunden",
+    "changeLibrary": "Ändern",
+    "compare": "Mit Fotos vergleichen",
+    "comparing": "Vergleich läuft…",
+    "unreadable": "Diese Mediathek kann nicht gelesen werden. Prüfe, ob Skimrr in den Systemeinstellungen unter Datenschutz & Sicherheit vollen Festplattenzugriff hat.",
+    "intro": "Prüfe vor dem Import einer SD-Karte oder eines Rohmaterial-Ordners, was bereits in Fotos ist, damit nichts doppelt landet.",
+    "alreadyKpi": "Schon in Fotos",
+    "missingKpi": "Zu importieren",
+    "reclaimKpi": "In der Quelle einsparbar",
+    "alreadyTitle": "Schon in Fotos",
+    "missingTitle": "Zu importieren",
+    "alreadyNone": "Aus dieser Quelle ist noch nichts in Fotos.",
+    "missingNone": "Alles ist schon in Fotos.",
+    "cleanAction_one": "{{count}} Foto aus der Quelle entfernen",
+    "cleanAction_other": "{{count}} Fotos aus der Quelle entfernen",
+    "importAction_one": "{{count}} Foto importieren",
+    "importAction_other": "{{count}} Fotos importieren",
+    "importConfirmTitle_one": "Dieses Foto in Fotos importieren?",
+    "importConfirmTitle_other": "Diese {{count}} Fotos in Fotos importieren?",
+    "importConfirmBody_one": "Sieh es dir unten an, bevor du importierst.",
+    "importConfirmBody_other": "Sieh sie dir unten an, bevor du importierst.",
+    "importConfirmAction_one": "{{count}} Foto importieren",
+    "importConfirmAction_other": "{{count}} Fotos importieren",
+    "imported_one": "{{count}} Foto in Fotos importiert",
+    "imported_other": "{{count}} Fotos in Fotos importiert"
   },
   "settings": {
     "title": "Einstellungen",

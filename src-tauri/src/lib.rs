@@ -13,7 +13,10 @@ use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Emitter, Manager, State};
 use walkdir::WalkDir;
 
+mod bktree;
+mod fusion;
 mod license;
+mod video;
 use license::LicenceState;
 
 const IMAGE_EXTS: [&str; 23] = [
@@ -25,6 +28,17 @@ const IMAGE_EXTS: [&str; 23] = [
 const RAW_EXTS: [&str; 12] = [
     "dng", "arw", "sr2", "srf", "cr2", "cr3", "nef", "nrw", "orf", "rw2", "raf", "pef",
 ];
+
+/// Formats a phone or camera actually produces, not every container ffmpeg can open:
+/// this is `analyze_video`'s scope, not ffmpeg's.
+const VIDEO_EXTS: [&str; 7] = ["mp4", "mov", "m4v", "avi", "mkv", "webm", "3gp"];
+
+fn is_video(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| VIDEO_EXTS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Photo {
@@ -40,6 +54,13 @@ struct Photo {
     /// What the webview should display: the file itself, or a cached rendition for
     /// formats no browser engine can show (camera raw, HEIC on Windows).
     preview: String,
+    /// A much smaller rendition for grid cells and cover mosaics, where dozens of
+    /// these can be on screen at once — decoding `preview` (or an un-downscaled
+    /// original) for every one of them is wasted work a scrolling grid repeats
+    /// constantly. `None` for a file this was never generated for (an older cache
+    /// entry, or the encode failed); callers fall back to `preview`.
+    #[serde(default)]
+    thumb: Option<String>,
     /// Uppercase extension for camera raw files, else None. Present because a raw's
     /// true sensor size is vendor-specific; we show the format rather than the
     /// dimensions of the preview we decoded.
@@ -74,6 +95,48 @@ struct Progress {
     done: usize,
     total: usize,
     phase: u8,
+}
+
+/// Caps `scan-progress` events to roughly one every 250ms or 100 items, whichever
+/// comes first, instead of a fixed item-count cadence alone: a fixed count either
+/// leaves a slow phase (large raw files) visibly frozen for seconds between updates,
+/// or fires far more IPC round-trips than a fast phase (cached hits) can usefully
+/// render. Shared across `rayon` workers, so a race letting two threads both decide to
+/// emit in the same window is tolerated rather than locked against — a couple of extra
+/// events are harmless for a progress bar, and `total` always gets through so the UI
+/// lands on a complete bar even if the last few items land in the same window.
+struct ProgressThrottle {
+    start: std::time::Instant,
+    last_emit_ms: std::sync::atomic::AtomicU64,
+}
+
+impl ProgressThrottle {
+    fn new() -> Self {
+        ProgressThrottle {
+            start: std::time::Instant::now(),
+            last_emit_ms: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    fn should_emit(&self, done: usize, total: usize) -> bool {
+        if done == total || done.is_multiple_of(100) {
+            self.mark_emitted();
+            return true;
+        }
+        let now_ms = self.start.elapsed().as_millis() as u64;
+        let last = self.last_emit_ms.load(Ordering::Relaxed);
+        if now_ms.saturating_sub(last) >= 250 {
+            self.mark_emitted();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn mark_emitted(&self) {
+        let now_ms = self.start.elapsed().as_millis() as u64;
+        self.last_emit_ms.store(now_ms, Ordering::Relaxed);
+    }
 }
 
 #[derive(Serialize)]
@@ -771,6 +834,9 @@ struct Analysis {
     taken: Option<i64>,
     /// A JPEG rendition to cache when the webview cannot display the file itself.
     preview_jpeg: Option<Vec<u8>>,
+    /// A small JPEG rendition for grid cells, generated for every format — unlike
+    /// `preview_jpeg`, which only exists for formats the webview cannot show at all.
+    thumb_jpeg: Option<Vec<u8>>,
 }
 
 impl Analysis {
@@ -781,6 +847,7 @@ impl Analysis {
             dims: None,
             taken: None,
             preview_jpeg: None,
+            thumb_jpeg: None,
         }
     }
 }
@@ -827,10 +894,40 @@ fn exif_orientation(path: &Path) -> u16 {
         .unwrap_or(1)
 }
 
+/// The camera/phone model from a JPEG's own EXIF `Model` tag — verified against a
+/// real cached Photos derivative here: reads back exactly `"iPhone 13"`. Ascii EXIF
+/// fields' `display_value()` renders with literal surrounding quote marks, confirmed
+/// the same way, hence the trim.
+fn camera_model(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut reader = std::io::BufReader::new(file);
+    let meta = exif::Reader::new().read_from_container(&mut reader).ok()?;
+    let field = meta.get_field(exif::Tag::Model, exif::In::PRIMARY)?;
+    let model = field.display_value().to_string();
+    let trimmed = model.trim_matches('"').trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
 /// Re-encode a decoded image down to something a webview can show cheaply. Sized for
 /// the full-screen viewer, not just the grid thumbnails.
 fn encode_preview(img: &image::DynamicImage) -> Option<Vec<u8>> {
     const MAX: u32 = 1600;
+    let scaled = if img.width() > MAX || img.height() > MAX {
+        img.resize(MAX, MAX, FilterType::Triangle)
+    } else {
+        img.clone()
+    };
+    let mut out = std::io::Cursor::new(Vec::new());
+    scaled
+        .to_rgb8()
+        .write_to(&mut out, image::ImageFormat::Jpeg)
+        .ok()?;
+    Some(out.into_inner())
+}
+
+/// Re-encode down to grid-thumbnail size — see the `thumb` field doc on `Photo`.
+fn encode_thumb(img: &image::DynamicImage) -> Option<Vec<u8>> {
+    const MAX: u32 = 320;
     let scaled = if img.width() > MAX || img.height() > MAX {
         img.resize(MAX, MAX, FilterType::Triangle)
     } else {
@@ -876,6 +973,7 @@ fn analyze_file(path: &Path) -> Analysis {
                 .map(|d| oriented_dims(d, meta.orientation.unwrap_or(1))),
             taken: meta.taken,
             preview_jpeg: encode_preview(&img),
+            thumb_jpeg: encode_thumb(&img),
         };
     }
 
@@ -891,13 +989,15 @@ fn analyze_file(path: &Path) -> Analysis {
             dims: Some((img.width(), img.height())),
             taken: None,
             preview_jpeg: encode_preview(&img),
+            thumb_jpeg: encode_thumb(&img),
         };
     }
 
     match image::open(path) {
         Ok(img) => {
             // The webview applies the EXIF tag itself when it loads the file, so no
-            // rendition is cached here, but the measurements must match what is shown.
+            // full-size rendition is cached here — only the small grid thumbnail,
+            // which does need the rotation baked in since it is generated fresh.
             let img = apply_orientation(img, exif_orientation(path));
             let gray = img.to_luma8();
             Analysis {
@@ -906,9 +1006,45 @@ fn analyze_file(path: &Path) -> Analysis {
                 dims: Some(gray.dimensions()),
                 taken: None,
                 preview_jpeg: None,
+                thumb_jpeg: encode_thumb(&img),
             }
         }
         Err(_) => Analysis::empty(),
+    }
+}
+
+/// Mirrors `analyze_file`'s shape for video files: three sampled frames instead of one
+/// decoded image, but the same fingerprint/sharpness/preview fields out the other side,
+/// so a video and a photograph slot into the same `Record` and the same clustering pass
+/// without either needing to know the other exists.
+///
+/// `None` for `ffmpeg_bin` (no sidecar resolved — see `video::sidecar_path`) is treated
+/// exactly like a file that failed to decode: an empty `Analysis`, not an error, since a
+/// scan already tolerates individual files it cannot read.
+fn analyze_video(ffmpeg_bin: Option<&Path>, path: &Path) -> Analysis {
+    let Some(frames) = ffmpeg_bin.and_then(|bin| video::extract_keyframes(bin, path)) else {
+        return Analysis::empty();
+    };
+    // The median frame first, matching where blur is measured; if it happens to be
+    // too featureless to hash (`fingerprint`'s own structure check), fall back to
+    // whichever sampled frame does carry enough to fingerprint, same as picking any
+    // decodable frame over none.
+    let phash = frames
+        .median()
+        .and_then(fingerprint)
+        .or_else(|| frames.frames.iter().flatten().find_map(fingerprint));
+    let blur = frames.median().map(|f| sharpness(&image::imageops::grayscale(f)));
+    let preview_jpeg = frames.median().and_then(|f| {
+        let dynamic = image::DynamicImage::ImageRgb8(f.clone());
+        encode_preview(&dynamic)
+    });
+    Analysis {
+        phash,
+        blur,
+        dims: Some((frames.width, frames.height)),
+        taken: None,
+        preview_jpeg,
+        thumb_jpeg: None,
     }
 }
 
@@ -962,6 +1098,7 @@ fn photo_meta(path: &Path, analysis: &Analysis, preview: String) -> Photo {
         taken: analysis.taken.unwrap_or_else(|| taken_date(path, mtime)),
         blur: analysis.blur,
         preview,
+        thumb: None,
         kind,
     }
 }
@@ -995,7 +1132,7 @@ fn preview_name(path: &Path, tag: &str) -> String {
 
 /// Bump when the analysis itself changes meaning, so old entries are not trusted for
 /// results they were never computed for.
-const SCAN_CACHE_VERSION: u32 = 3;
+const SCAN_CACHE_VERSION: u32 = 4;
 
 #[derive(Serialize, Deserialize)]
 struct CachedFile {
@@ -1010,14 +1147,15 @@ struct ScanCache {
     files: HashMap<String, CachedFile>,
 }
 
-/// One cache file per scanned folder, so analysing a second library does not evict the
-/// first. Named from a hash of the root because a path is not a safe file name.
-fn scan_cache_path(app: &AppHandle, root: &Path) -> Option<PathBuf> {
+/// One cache shared across every folder ever scanned, keyed by each file's own
+/// absolute path (`CachedFile` already carries its own mtime/size staleness check).
+/// Scanning a different combination of folders — in particular, adding another
+/// folder to a scan already on screen — reuses whatever it already has decoded
+/// instead of starting over: only genuinely new or changed files cost anything.
+fn scan_cache_path(app: &AppHandle) -> Option<PathBuf> {
     let dir = app.path().app_cache_dir().ok()?.join("scans");
     std::fs::create_dir_all(&dir).ok()?;
-    let mut hasher = Sha256::new();
-    hasher.update(root.to_string_lossy().as_bytes());
-    Some(dir.join(format!("{:x}.json", hasher.finalize())))
+    Some(dir.join("cache.json"))
 }
 
 fn load_scan_cache(path: Option<&PathBuf>) -> ScanCache {
@@ -1109,28 +1247,43 @@ fn file_stamp(path: &Path) -> Option<(i64, u64)> {
     Some((mtime, meta.len()))
 }
 
-fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
-    let root = PathBuf::from(root);
-    if !root.is_dir() {
+fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
+    let roots: Vec<PathBuf> = roots.into_iter().map(PathBuf::from).collect();
+    if roots.is_empty() {
         return Err("not a directory".into());
     }
-    if root.ancestors().any(is_opaque_package) {
-        return Err(IS_LIBRARY.into());
+    for root in &roots {
+        if !root.is_dir() {
+            return Err("not a directory".into());
+        }
+        if root.ancestors().any(is_opaque_package) {
+            return Err(IS_LIBRARY.into());
+        }
     }
     let cache = preview_cache_dir(&app);
     let cancel = app.state::<Cancel>();
     let stopped = || cancel.0.load(Ordering::Relaxed);
-    let cache_file = scan_cache_path(&app, &root);
+    let cache_file = scan_cache_path(&app);
     let cached = load_scan_cache(cache_file.as_ref());
 
-    let files: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| !(e.file_type().is_dir() && is_opaque_package(e.path())))
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_image(e.path()))
-        .map(|e| e.into_path())
+    // Two selected folders can overlap (one nested inside another, or the very same
+    // folder picked twice) — a canonical-path dedupe keeps every file counted once
+    // regardless of which of its paths it was reached through.
+    let mut seen = HashSet::new();
+    let files: Vec<PathBuf> = roots
+        .iter()
+        .flat_map(|root| {
+            WalkDir::new(root)
+                .follow_links(false)
+                .into_iter()
+                .filter_entry(|e| !(e.file_type().is_dir() && is_opaque_package(e.path())))
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| is_image(e.path()))
+                .map(|e| e.into_path())
+                .collect::<Vec<_>>()
+        })
+        .filter(|path| seen.insert(path.canonicalize().unwrap_or_else(|_| path.clone())))
         .collect();
     // Files whose contents are not on this disk are set aside before anything opens
     // them, so a cloud folder cannot stall the scan in an uninterruptible read.
@@ -1159,6 +1312,7 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
         .collect();
     let hash_total = candidates.len();
     let done = AtomicUsize::new(0);
+    let throttle = ProgressThrottle::new();
     let _ = app.emit(
         "scan-progress",
         Progress {
@@ -1177,7 +1331,7 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
                 .ok()
                 .map(|h| (path.to_string_lossy().into_owned(), h));
             let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if d.is_multiple_of(25) || d == hash_total {
+            if throttle.should_emit(d, hash_total) {
                 let _ = app.emit(
                     "scan-progress",
                     Progress {
@@ -1193,6 +1347,7 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
 
     // Phase 2, decode every image once for perceptual hash + sharpness + EXIF date.
     let done = AtomicUsize::new(0);
+    let throttle = ProgressThrottle::new();
     let _ = app.emit(
         "scan-progress",
         Progress {
@@ -1218,9 +1373,15 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
                     && hit.size == stamp.1
                     && (hit.record.photo.preview == key
                         || Path::new(&hit.record.photo.preview).exists())
+                    && hit
+                        .record
+                        .photo
+                        .thumb
+                        .as_deref()
+                        .map_or(true, |p| Path::new(p).exists())
                 {
                     let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-                    if d.is_multiple_of(5) || d == total {
+                    if throttle.should_emit(d, total) {
                         let _ = app.emit(
                             "scan-progress",
                             Progress {
@@ -1250,10 +1411,23 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
                 }
                 _ => path.to_string_lossy().into_owned(),
             };
-            let photo = photo_meta(&path, &analysis, preview);
+            // The grid thumbnail, unlike `preview`, is cached for every format —
+            // see the `thumb` field doc on `Photo` for why.
+            let thumb = match (&analysis.thumb_jpeg, &cache) {
+                (Some(bytes), Some(dir)) => {
+                    let file = dir.join(preview_name(&path, "thumb"));
+                    if !file.exists() {
+                        let _ = std::fs::write(&file, bytes);
+                    }
+                    Some(file.to_string_lossy().into_owned())
+                }
+                _ => None,
+            };
+            let mut photo = photo_meta(&path, &analysis, preview);
+            photo.thumb = thumb;
             let sha = shas.get(&photo.path).cloned();
             let d = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if d.is_multiple_of(5) || d == total {
+            if throttle.should_emit(d, total) {
                 let _ = app.emit(
                     "scan-progress",
                     Progress {
@@ -1278,30 +1452,32 @@ fn run_scan(app: AppHandle, root: String) -> Result<usize, String> {
     }
 
     if let Some(path) = &cache_file {
-        let fresh = ScanCache {
-            version: SCAN_CACHE_VERSION,
-            files: records
-                .iter()
-                .filter_map(|r| {
-                    let stamp = file_stamp(Path::new(&r.photo.path))?;
-                    Some((
-                        r.photo.path.clone(),
-                        CachedFile {
-                            mtime: stamp.0,
-                            size: stamp.1,
-                            record: r.clone(),
-                        },
-                    ))
-                })
-                .collect(),
-        };
+        // Reload rather than reuse the `cached` read earlier in this function: another
+        // scan (a different folder combination, run concurrently or since) may have
+        // written entries this one never touched, and those must survive too — this
+        // is a shared, ever-growing cache now, not one scoped to a single folder set.
+        let mut merged = load_scan_cache(Some(path));
+        merged.version = SCAN_CACHE_VERSION;
+        for r in &records {
+            let Some(stamp) = file_stamp(Path::new(&r.photo.path)) else {
+                continue;
+            };
+            merged.files.insert(
+                r.photo.path.clone(),
+                CachedFile {
+                    mtime: stamp.0,
+                    size: stamp.1,
+                    record: r.clone(),
+                },
+            );
+        }
         // An empty index carries nothing and still shows up as a file the settings
         // panel has to explain. A folder with nothing analysable leaves no trace.
-        if fresh.files.is_empty() {
+        if merged.files.is_empty() {
             let _ = std::fs::remove_file(path);
         } else
         // Best effort: a cache that cannot be written costs time, never correctness.
-        if let Ok(bytes) = serde_json::to_vec(&fresh) {
+        if let Ok(bytes) = serde_json::to_vec(&merged) {
             let _ = std::fs::write(path, bytes);
         }
     }
@@ -1422,6 +1598,14 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
     // transitive, so A close to B and B close to C drags A and C together even when they
     // are twice the threshold apart; on a real library a handful of near-matches then
     // collapses into one absurd cluster. Clustering around a seed bounds every group.
+    //
+    // A BK-tree (bktree.rs) was tried here to avoid the O(n^2) scan, but measured 18x
+    // *slower* than this plain scan at n=50,000, both on uniform-random hashes and on
+    // realistic clustered ones: at the app's threshold (28 of 128 bits), the pruning
+    // window is far wider than the ~5.7-bit standard deviation of Hamming distance
+    // between unrelated hashes, so almost nothing gets pruned and the tree just pays
+    // pointer-chasing overhead. The scan itself is already ~550M comparisons/sec here,
+    // so it stays the linear scan unless a real dataset shows it's actually a bottleneck.
     let phashes: Vec<Option<u128>> = records.iter().map(|r| r.phash).collect();
     let mut taken = vec![false; n];
     for i in 0..n {
@@ -1429,13 +1613,11 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
         if taken[i] {
             continue;
         }
-        // Comparing against every later photo is the same work as before; only the
-        // decision to join changed.
         let members: Vec<usize> = (i + 1..n)
             .into_par_iter()
             .filter(|&j| {
                 !taken[j]
-                    && phashes[j].is_some_and(|other| (seed ^ other).count_ones() <= threshold)
+                    && phashes[j].map_or(false, |h| (seed ^ h).count_ones() <= threshold)
             })
             .collect();
         for j in members {
@@ -1561,9 +1743,9 @@ struct Cancel(AtomicBool);
 const CANCELLED: &str = "cancelled";
 
 #[tauri::command]
-async fn scan_folder(app: AppHandle, path: String) -> Result<usize, String> {
+async fn scan_folder(app: AppHandle, paths: Vec<String>) -> Result<usize, String> {
     app.state::<Cancel>().0.store(false, Ordering::Relaxed);
-    tauri::async_runtime::spawn_blocking(move || run_scan(app, path))
+    tauri::async_runtime::spawn_blocking(move || run_scan(app, paths))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -1614,11 +1796,13 @@ async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result
     let total = paths.len();
     let mut best = 0usize;
     let mut idle = 0u32;
+    let mut tick = 0u32;
     loop {
         if app.state::<Cancel>().0.load(Ordering::Relaxed) {
             return Err(CANCELLED.into());
         }
-        let ready = paths.iter().filter(|p| !is_dataless(p)).count();
+        let remaining: Vec<PathBuf> = paths.iter().filter(|p| is_dataless(p)).cloned().collect();
+        let ready = total - remaining.len();
         let _ = app.emit(
             "download-progress",
             Progress {
@@ -1627,7 +1811,7 @@ async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result
                 phase: 3,
             },
         );
-        if ready >= total {
+        if remaining.is_empty() {
             return Ok(ready);
         }
         // No movement for two minutes means the system is not going to deliver these.
@@ -1638,6 +1822,20 @@ async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result
             idle += 1;
             if idle > 120 {
                 return Err(format!("stalled:{ready}"));
+            }
+        }
+        // A single upfront `brctl download` does not reliably trigger every file in a
+        // large batch — real-world reports of it silently dropping some requests are
+        // common. Re-asking for whatever is still missing, every 20s, recovers those
+        // instead of spending the whole stall window just watching for a download
+        // that was never actually requested a second time.
+        tick += 1;
+        if tick.is_multiple_of(20) {
+            for chunk in remaining.chunks(40) {
+                let _ = std::process::Command::new("brctl")
+                    .arg("download")
+                    .args(chunk)
+                    .status();
             }
         }
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -1768,7 +1966,13 @@ fn days(state: State<ScanState>) -> Vec<Day> {
         entry.0 += 1;
         entry.1 += record.photo.size;
         if entry.2.len() < 4 {
-            entry.2.push(record.photo.preview.clone());
+            entry.2.push(
+                record
+                    .photo
+                    .thumb
+                    .clone()
+                    .unwrap_or_else(|| record.photo.preview.clone()),
+            );
         }
     }
     let mut out: Vec<Day> = by_day
@@ -1782,6 +1986,112 @@ fn days(state: State<ScanState>) -> Vec<Day> {
         .collect();
     out.sort_by(|a, b| a.key.cmp(&b.key));
     out
+}
+
+/// Same day-by-day shape as `days()`, but built from the Destination library instead
+/// of the current Source scan — the Gallery tab's "also show what's already in
+/// Photos, for the days that matter" view. Deliberately scoped to `only_dates` (the
+/// Source scan's own day keys) rather than the whole library: a real library can span
+/// years, and nobody asking "what do I already have from this trip" wants every
+/// unrelated day mixed in — this is an explicit choice the user makes per scan, not
+/// something that runs unasked. Trashed and hidden assets are left out, matching what
+/// Photos' own main grid shows. Covers come from `fusion::find_thumbnail`'s
+/// locally-cached derivatives, so this never triggers an iCloud download just to
+/// render a thumbnail, and thumbnail work only happens for days that survive the
+/// `only_dates` filter, not the whole library.
+#[tauri::command]
+fn photos_days(library_path: String, only_dates: Vec<String>) -> Result<Vec<Day>, String> {
+    let lib = Path::new(&library_path);
+    let index = fusion::read_photos_index(lib)?;
+    let wanted: HashSet<String> = only_dates.into_iter().collect();
+
+    let mut by_day: HashMap<String, (usize, u64, Vec<&fusion::PhotosAsset>)> = HashMap::new();
+    for asset in &index {
+        if asset.trashed || asset.hidden {
+            continue;
+        }
+        let Some(taken) = asset.taken else {
+            continue;
+        };
+        let key = day_key(taken);
+        if !wanted.contains(&key) {
+            continue;
+        }
+        let entry = by_day.entry(key).or_default();
+        entry.0 += 1;
+        entry.1 += asset.size.unwrap_or(0);
+        entry.2.push(asset);
+    }
+
+    let mut out: Vec<Day> = by_day
+        .into_iter()
+        .map(|(key, (count, bytes, assets))| {
+            let mut covers = Vec::new();
+            for asset in &assets {
+                if covers.len() >= 4 {
+                    break;
+                }
+                if let Some(thumb) = fusion::find_thumbnail(lib, &asset.uuid) {
+                    covers.push(thumb.to_string_lossy().into_owned());
+                }
+            }
+            Day {
+                key,
+                count,
+                bytes,
+                covers,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.key.cmp(&b.key));
+    Ok(out)
+}
+
+/// Every non-trashed, non-hidden Destination asset taken on exactly `date`, each
+/// resolved to its own locally-cached thumbnail — unlike `photos_days`, which caps
+/// every day at 4 covers so the whole Gallery stays cheap to load, this runs for one
+/// specific day, on demand, only when the viewer actually opens it. Shaped as `Photo`
+/// so the existing viewer can show these next to Source photos without a separate
+/// code path; `blur`/`kind` are always `None` since neither is computed for a
+/// Photos-library asset, and `preview` points at the cached derivative, not the
+/// original — this never triggers an iCloud download just to look at a day.
+#[tauri::command]
+fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, String> {
+    let lib = Path::new(&library_path);
+    let index = fusion::read_photos_index(lib)?;
+
+    Ok(index
+        .into_iter()
+        .filter(|a| !a.trashed && !a.hidden)
+        .filter_map(|a| {
+            let taken = a.taken?;
+            if day_key(taken) != date {
+                return None;
+            }
+            let thumb = fusion::find_thumbnail(lib, &a.uuid)?;
+            let preview = thumb.to_string_lossy().into_owned();
+            // Photos renames every imported file to its own UUID on import, so
+            // `a.filename` reads as noise (`8136520B-...heic`); the camera model,
+            // read straight from the cached derivative's own EXIF, is what a person
+            // actually recognises a shot by. Falls back to the UUID name on whatever
+            // has none — a screenshot, an edited export, anything not camera-shot.
+            let name = camera_model(&thumb).unwrap_or(a.filename);
+            Some(Photo {
+                path: preview.clone(),
+                name,
+                size: a.size.unwrap_or(0),
+                width: a.width,
+                height: a.height,
+                taken,
+                blur: None,
+                preview,
+                // Photos' own cached derivative is already thumbnail-sized — no
+                // second, smaller rendition to generate here.
+                thumb: None,
+                kind: None,
+            })
+        })
+        .collect())
 }
 
 /// Move `paths` into a fresh batch folder under `trash_root`, writing a manifest
@@ -1895,6 +2205,89 @@ fn trash_root(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("trash"))
+}
+
+/// Generous on purpose: `fusion::already_in_photos` only leans on this as a sanity
+/// bound against a same-name-same-size coincidence, not as the deciding signal (see
+/// its own doc comment), so there is little to gain and real false negatives to risk
+/// by making it tight when the actual timezone relationship between a source file's
+/// naively-parsed EXIF/MP4 date and Photos' own `ZDATECREATED` has not been verified.
+const PHOTOS_MATCH_DATE_TOLERANCE_SECS: i64 = 48 * 3600;
+
+#[derive(Serialize)]
+struct PhotosComparison {
+    /// Source paths that already match something in Photos by filename + exact
+    /// original byte size — candidates to clear out of the source once confirmed.
+    already_in_photos: Vec<String>,
+    /// Source paths with no match in the library — candidates to import.
+    missing_from_photos: Vec<String>,
+}
+
+/// The library at the standard macOS location, when there is one — a starting point
+/// for the picker, not a guarantee (a renamed library, or several, are both normal).
+#[tauri::command]
+fn default_photos_library_path(app: AppHandle) -> Option<String> {
+    let path = app
+        .path()
+        .picture_dir()
+        .ok()?
+        .join("Photos Library.photoslibrary");
+    path.exists().then(|| path.to_string_lossy().into_owned())
+}
+
+/// "Retour de vacances" workflow, step 2: for every photo already found in the current
+/// scan (step 1, the ordinary Source-folder scan this app already does), checks
+/// whether it is already safely in the Destination library, so the caller can decide
+/// what actually needs importing versus what can already be cleared from the source.
+///
+/// Read-only end to end — no file is imported or trashed here, only categorised — so,
+/// unlike `trash_photos`/`import_to_photos`, this is not gated behind a licence.
+#[tauri::command]
+fn compare_with_photos(
+    state: State<ScanState>,
+    library_path: String,
+) -> Result<PhotosComparison, String> {
+    let index = fusion::read_photos_index(Path::new(&library_path))?;
+    let data = state.0.lock().unwrap();
+
+    let mut already_in_photos = Vec::new();
+    let mut missing_from_photos = Vec::new();
+    for record in &data.records {
+        let path = Path::new(&record.photo.path);
+        let source_taken = fusion::read_naive_taken(path);
+        let found = fusion::already_in_photos(
+            &record.photo.name,
+            Some(record.photo.size),
+            source_taken,
+            &index,
+            PHOTOS_MATCH_DATE_TOLERANCE_SECS,
+        );
+        match found {
+            Some(_) => already_in_photos.push(record.photo.path.clone()),
+            None => missing_from_photos.push(record.photo.path.clone()),
+        }
+    }
+
+    Ok(PhotosComparison {
+        already_in_photos,
+        missing_from_photos,
+    })
+}
+
+/// "Retour de vacances" workflow, step 3a: imports exactly the paths the caller has
+/// already decided to import (typically `compare_with_photos`'s `missing_from_photos`,
+/// after the user reviews and confirms) into Apple Photos. Step 3b, clearing the
+/// source of what's already safe, is not a new command — it is the existing
+/// `trash_photos`, unchanged, given `already_in_photos`'s paths once confirmed.
+#[tauri::command]
+fn import_to_photos(licence: State<LicenceState>, paths: Vec<String>) -> Result<Vec<String>, String> {
+    // Same rule as trash_photos: reviewing is free, writing to a library the user
+    // did not create through Skimrr is what a licence buys.
+    if !license::is_active(&licence) {
+        return Err("licence_required".into());
+    }
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    fusion::import_paths(&paths)
 }
 
 #[tauri::command]
@@ -2040,6 +2433,11 @@ pub fn run() {
             download_offline,
             regroup,
             days,
+            photos_days,
+            photos_day_detail,
+            default_photos_library_path,
+            compare_with_photos,
+            import_to_photos,
             trash_photos,
             undo_trash,
             list_trash,
@@ -2195,6 +2593,80 @@ mod tests {
     use super::*;
     use image::Luma;
 
+    /// Same minimal `Photos.sqlite` shape `fusion::tests` builds, plus one real
+    /// thumbnail JPEG on disk, so `photos_day_detail` can be exercised end to end
+    /// without a real Photos library. `taken` is a Unix timestamp; ground truth for
+    /// which day it falls on comes from `day_key` itself, not a hand-computed date,
+    /// so the test can't drift from whatever `day_key`'s own timezone handling does.
+    fn synthetic_library_with_thumbnail(dir: &Path, uuid: &str, taken: i64) {
+        let db_dir = dir.join("database");
+        std::fs::create_dir_all(&db_dir).unwrap();
+        let conn = rusqlite::Connection::open(db_dir.join("Photos.sqlite")).unwrap();
+        let mac_seconds = (taken - 978_307_200) as f64;
+        conn.execute_batch(&format!(
+            "CREATE TABLE ZASSET (
+                Z_PK INTEGER, ZADDITIONALATTRIBUTES INTEGER,
+                ZUUID TEXT, ZFILENAME TEXT, ZDATECREATED REAL,
+                ZWIDTH INTEGER, ZHEIGHT INTEGER, ZDURATION REAL,
+                ZTRASHEDSTATE INTEGER, ZHIDDEN INTEGER
+            );
+            CREATE TABLE ZADDITIONALASSETATTRIBUTES (
+                Z_PK INTEGER, ZORIGINALFILESIZE INTEGER
+            );
+            INSERT INTO ZADDITIONALASSETATTRIBUTES VALUES (1, 123456);
+            INSERT INTO ZASSET VALUES
+                (1, 1, '{uuid}', 'IMG_0001.HEIC', {mac_seconds}, 100, 200, 0.0, 0, 0);"
+        ))
+        .unwrap();
+
+        let hex = uuid.chars().next().unwrap().to_ascii_uppercase().to_string();
+        let thumb_dir = dir.join("resources/derivatives").join(&hex);
+        std::fs::create_dir_all(&thumb_dir).unwrap();
+        image::RgbImage::new(4, 4)
+            .save_with_format(
+                thumb_dir.join(format!("{uuid}_1_1_c.jpeg")),
+                image::ImageFormat::Jpeg,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn photos_day_detail_finds_only_the_matching_day() {
+        let dir = std::env::temp_dir().join(format!("skimrr-day-detail-test-{}", std::process::id()));
+        let uuid = "0283FD35-7126-4035-ADC4-DC6BA3A8505C";
+        let taken = 1_718_452_800; // an arbitrary, fixed instant
+        let day = day_key(taken);
+        synthetic_library_with_thumbnail(&dir, uuid, taken);
+
+        let found = photos_day_detail(dir.to_string_lossy().into_owned(), day.clone()).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "IMG_0001.HEIC");
+        assert_eq!(found[0].size, 123456);
+        assert!(found[0].blur.is_none());
+        assert!(!found[0].preview.is_empty());
+
+        let other_day = photos_day_detail(dir.to_string_lossy().into_owned(), "1999-01-01".into()).unwrap();
+        assert!(other_day.is_empty(), "a different day must return nothing");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn progress_throttle_always_lets_the_final_item_through() {
+        let throttle = ProgressThrottle::new();
+        assert!(throttle.should_emit(1, 1), "the only item is also the last one");
+        assert!(throttle.should_emit(37, 37));
+    }
+
+    #[test]
+    fn progress_throttle_emits_every_hundredth_item_regardless_of_elapsed_time() {
+        let throttle = ProgressThrottle::new();
+        assert!(!throttle.should_emit(1, 1000), "no time has passed and this isn't a multiple of 100");
+        assert!(throttle.should_emit(100, 1000));
+        assert!(!throttle.should_emit(101, 1000), "just emitted; too soon for another on count alone");
+        assert!(throttle.should_emit(200, 1000));
+    }
+
     fn checkerboard() -> GrayImage {
         GrayImage::from_fn(64, 64, |x, y| {
             Luma([if (x + y) % 2 == 0 { 255 } else { 0 }])
@@ -2279,6 +2751,7 @@ mod tests {
                 taken: 0,
                 blur: None,
                 preview: path.into(),
+                thumb: None,
                 kind: None,
             },
             sha: sha.map(String::from),
@@ -3430,6 +3903,7 @@ mod tests {
                 taken: 1,
                 blur: Some(900.0),
                 preview: path.into(),
+                thumb: None,
                 kind: None,
             },
             sha: Some("abc".into()),
@@ -3749,6 +4223,62 @@ mod heic_tests {
         assert!(analysis.phash.is_some(), "HEIC needs a perceptual hash");
         assert!(analysis.blur.is_some(), "HEIC needs a sharpness score");
         assert_eq!(analysis.dims, Some((600, 450)));
+    }
+}
+
+#[cfg(test)]
+mod video_tests {
+    use super::*;
+
+    /// Same technique as `video::tests`: a short synthetic clip built with the
+    /// `ffmpeg` CLI (resolved via `PATH`), independent of the sidecar-resolution path
+    /// `analyze_video` itself uses — here it's given the CLI's location directly.
+    fn synthetic_clip(dir: &Path) -> Option<PathBuf> {
+        let out = dir.join("clip.mp4");
+        let status = std::process::Command::new("ffmpeg")
+            .args([
+                "-y", "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=10:duration=3", "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(&out)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .ok()?;
+        status.success().then_some(out)
+    }
+
+    #[test]
+    fn a_video_is_analysed_like_a_photo_would_be() {
+        let dir = std::env::temp_dir().join(format!("skimrr-analyze-video-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let Some(clip) = synthetic_clip(&dir) else {
+            eprintln!("skipping: no working `ffmpeg` CLI available");
+            return;
+        };
+
+        let analysis = analyze_video(Some(Path::new("ffmpeg")), &clip);
+        assert!(analysis.phash.is_some(), "a moving test pattern must yield a fingerprint");
+        assert!(analysis.blur.is_some(), "the median frame must yield a sharpness score");
+        assert_eq!(analysis.dims, Some((64, 48)));
+        assert!(analysis.preview_jpeg.is_some(), "a preview must be cached, same as HEIC/raw");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn no_sidecar_is_treated_like_an_undecodable_file() {
+        let analysis = analyze_video(None, Path::new("/no/such/file.mp4"));
+        assert!(analysis.phash.is_none());
+        assert!(analysis.blur.is_none());
+    }
+
+    #[test]
+    fn video_extensions_are_recognised_and_dont_overlap_images() {
+        for ext in VIDEO_EXTS {
+            assert!(is_video(Path::new(&format!("clip.{ext}"))));
+            assert!(!is_image(Path::new(&format!("clip.{ext}"))), "{ext} must not double as an image extension");
+        }
     }
 }
 
