@@ -1,0 +1,23 @@
+{
+  "identifier": "Skimrr.Skimrr",
+  "publisher": "CN=E5276126-FE55-4DF0-86CC-7D01F39BBAA7",
+  "publisherDisplayName": "Skimrr",
+  "capabilities": {
+    "general": [
+      "internetClient"
+    ]
+  },
+  "extensions": {
+    "shareTarget": false,
+    "fileAssociations": [],
+    "protocolHandlers": []
+  },
+  "signing": {
+    "pfx": null,
+    "pfxPassword": null
+  },
+  "resourceIndex": {
+    "enabled": false,
+    "keepConfig": false
+  }
+}
