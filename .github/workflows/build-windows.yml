@@ -20,6 +20,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # candle-onnx's build script generates code from .proto files at compile
+      # time and needs protoc on PATH — not preinstalled on windows-latest.
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
