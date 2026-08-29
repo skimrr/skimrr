@@ -1,0 +1,62 @@
+name: Build Linux
+
+# Builds the .deb, .rpm and .AppImage bundles on a real Linux runner.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # candle-onnx's build script generates code from .proto files at compile
+      # time and needs protoc on PATH — not preinstalled on ubuntu-latest.
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Standard Tauri 2 Linux build prerequisites: webkit2gtk for the webview,
+      # appindicator/rsvg for the tray icon and SVG assets, patchelf for the
+      # AppImage bundler, libxdo for the dialog plugin.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            file
+
+      - run: npm ci
+
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - run: npm run tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skimrr-linux
+          path: |
+            src-tauri/target/release/skimrr
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
