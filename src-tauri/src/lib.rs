@@ -2148,12 +2148,24 @@ fn photos_days(
     library_path: String,
     only_dates: Vec<String>,
 ) -> Result<Vec<Day>, String> {
-    let root = Path::new(&library_path);
+    photos_days_in(&library_path, only_dates, preview_cache_dir(&app).as_deref())
+}
+
+/// The actual folder walk, taking the cache directory as a plain path rather than an
+/// `AppHandle` — `AppHandle` is a concrete type tied to the real Wry runtime, which a
+/// mock `AppHandle<MockRuntime>` in a test can't stand in for, so keeping the app
+/// handle out of this function entirely is what makes it testable at all.
+#[cfg(not(target_os = "macos"))]
+fn photos_days_in(
+    library_path: &str,
+    only_dates: Vec<String>,
+    cache: Option<&Path>,
+) -> Result<Vec<Day>, String> {
+    let root = Path::new(library_path);
     if !root.is_dir() {
         return Err("not a directory".into());
     }
     let wanted: HashSet<String> = only_dates.into_iter().collect();
-    let cache = preview_cache_dir(&app);
 
     let mut by_day: HashMap<String, (usize, u64, Vec<PathBuf>)> = HashMap::new();
     for entry in WalkDir::new(root)
@@ -2189,7 +2201,7 @@ fn photos_days(
             let covers = paths
                 .into_iter()
                 .map(|p| {
-                    destination_thumb(&p, cache.as_deref())
+                    destination_thumb(&p, cache)
                         .unwrap_or_else(|| p.to_string_lossy().into_owned())
                 })
                 .collect();
@@ -2216,11 +2228,21 @@ fn photos_day_detail(
     library_path: String,
     date: String,
 ) -> Result<Vec<Photo>, String> {
-    let root = Path::new(&library_path);
+    photos_day_detail_in(&library_path, &date, preview_cache_dir(&app).as_deref())
+}
+
+/// See `photos_days_in`'s doc comment for why the cache directory is a plain path
+/// here rather than an `AppHandle`.
+#[cfg(not(target_os = "macos"))]
+fn photos_day_detail_in(
+    library_path: &str,
+    date: &str,
+    cache: Option<&Path>,
+) -> Result<Vec<Photo>, String> {
+    let root = Path::new(library_path);
     if !root.is_dir() {
         return Err("not a directory".into());
     }
-    let cache = preview_cache_dir(&app);
 
     let mut out = Vec::new();
     for entry in WalkDir::new(root)
@@ -2242,7 +2264,7 @@ fn photos_day_detail(
             continue;
         }
         let analysis = analyze_file(&path);
-        let preview = match (&analysis.preview_jpeg, &cache) {
+        let preview = match (&analysis.preview_jpeg, cache) {
             (Some(bytes), Some(dir)) => {
                 let file = dir.join(preview_name(&path, "grid"));
                 if !file.exists() {
@@ -2252,7 +2274,7 @@ fn photos_day_detail(
             }
             _ => path.to_string_lossy().into_owned(),
         };
-        let thumb = match (&analysis.thumb_jpeg, &cache) {
+        let thumb = match (&analysis.thumb_jpeg, cache) {
             (Some(bytes), Some(dir)) => {
                 let file = dir.join(preview_name(&path, "thumb"));
                 if !file.exists() {
@@ -2784,6 +2806,7 @@ mod tests {
     /// without a real Photos library. `taken` is a Unix timestamp; ground truth for
     /// which day it falls on comes from `day_key` itself, not a hand-computed date,
     /// so the test can't drift from whatever `day_key`'s own timezone handling does.
+    #[cfg(target_os = "macos")]
     fn synthetic_library_with_thumbnail(dir: &Path, uuid: &str, taken: i64) {
         let db_dir = dir.join("database");
         std::fs::create_dir_all(&db_dir).unwrap();
@@ -2816,6 +2839,7 @@ mod tests {
             .unwrap();
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn photos_day_detail_finds_only_the_matching_day() {
         let dir = std::env::temp_dir().join(format!("skimrr-day-detail-test-{}", std::process::id()));
@@ -2835,6 +2859,47 @@ mod tests {
         assert!(other_day.is_empty(), "a different day must return nothing");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Windows/Linux counterpart of the macOS test above: a plain folder instead
+    /// of a Photos.sqlite library, exercising the `_in` functions directly (no
+    /// `AppHandle` needed — see their doc comments) with a real cache directory so
+    /// the thumbnail-writing path runs too, not just the day-matching. `taken` comes
+    /// from the file's own mtime, since a freshly-written synthetic JPEG carries no
+    /// EXIF date — ground truth is `day_key(taken_date(...))` itself, the same
+    /// function `photos_days_in`/`photos_day_detail_in` use internally, so the test
+    /// can't drift from it.
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn photos_days_and_detail_find_only_the_matching_day() {
+        let dir = std::env::temp_dir().join(format!("skimrr-dest-folder-test-{}", std::process::id()));
+        let cache_dir = std::env::temp_dir().join(format!("skimrr-dest-cache-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        let path = dir.join("photo.jpg");
+        image::RgbImage::new(4, 4)
+            .save_with_format(&path, image::ImageFormat::Jpeg)
+            .unwrap();
+
+        let (mtime, _) = file_stamp(&path).unwrap();
+        let day = day_key(taken_date(&path, mtime));
+        let library_path = dir.to_string_lossy().into_owned();
+
+        let days = photos_days_in(&library_path, vec![day.clone()], Some(&cache_dir)).unwrap();
+        assert_eq!(days.len(), 1);
+        assert_eq!(days[0].key, day);
+        assert_eq!(days[0].count, 1);
+        assert_eq!(days[0].covers.len(), 1);
+
+        let other = photos_days_in(&library_path, vec!["1999-01-01".into()], Some(&cache_dir)).unwrap();
+        assert!(other.is_empty(), "a different day must return nothing");
+
+        let detail = photos_day_detail_in(&library_path, &day, Some(&cache_dir)).unwrap();
+        assert_eq!(detail.len(), 1);
+        assert!(!detail[0].preview.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&cache_dir);
     }
 
     #[test]
