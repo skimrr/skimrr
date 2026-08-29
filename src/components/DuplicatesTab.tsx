@@ -1,6 +1,25 @@
+import { useMemo, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { View, formatBytes, formatDate } from "../types";
+
+type SortOrder = "asc" | "desc";
+
+function SortIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19V5M12 5 7 10M12 5l5 5" />
+    </svg>
+  );
+}
+
+/** Earliest shot in the group stands in for "the group's date" — a duplicate group is
+    near-enough one moment that picking a single representative photo (rather than
+    averaging) is both simpler and never misleading. */
+function groupDate(view: View, groupIndex: number): number {
+  const group = view.groups[groupIndex];
+  return Math.min(...group.indices.map((i) => view.photos[i].taken));
+}
 
 export function DuplicatesTab({
   view,
@@ -26,6 +45,18 @@ export function DuplicatesTab({
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+
+  // Sorts a list of the groups' own indices, not the groups themselves: every
+  // downstream lookup (kept[gi], cursor.group, onKeep(gi, ...)) is keyed by a
+  // group's position in view.groups, which must stay stable regardless of the
+  // order they're displayed in.
+  const order = useMemo(() => {
+    const idx = view.groups.map((_, i) => i);
+    idx.sort((a, b) => groupDate(view, a) - groupDate(view, b));
+    if (sortOrder === "desc") idx.reverse();
+    return idx;
+  }, [view, sortOrder]);
 
   return (
     <>
@@ -45,6 +76,16 @@ export function DuplicatesTab({
         <span className="toolbar-value mono">
           ~{Math.round(((128 - simThreshold) / 128) * 100)} %
         </span>
+        <span className="spacer" />
+        <button
+          type="button"
+          className={`btn-ghost btn-sort${sortOrder === "desc" ? " desc" : ""}`}
+          onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
+          title={t("days.sortLabel")}
+        >
+          <SortIcon />
+          {sortOrder === "asc" ? t("days.sortAsc") : t("days.sortDesc")}
+        </button>
       </div>
 
       {view.groups.length === 0 ? (
@@ -53,7 +94,8 @@ export function DuplicatesTab({
           <p>{t("results.noneBody", { count: view.total_files })}</p>
         </div>
       ) : (
-        view.groups.map((group, gi) => {
+        order.map((gi, displayPos) => {
+          const group = view.groups[gi];
           const trashCount = group.indices.length - 1;
           return (
             <section
@@ -62,7 +104,7 @@ export function DuplicatesTab({
               data-group={gi}
             >
               <div className="group-label">
-                {t("group.title", { n: gi + 1, total: view.groups.length })}
+                {t("group.title", { n: displayPos + 1, total: view.groups.length })}
                 {" · "}
                 {group.kind === "pair"
                   ? t("group.pair")

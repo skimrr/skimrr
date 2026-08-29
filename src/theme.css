@@ -442,6 +442,7 @@ button {
   gap: 0.9rem;
   padding: 0.2rem 0 1.4rem;
 }
+.toolbar .spacer { flex: 1; }
 .toolbar-label {
   font-size: 0.8rem;
   font-weight: 500;
