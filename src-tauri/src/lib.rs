@@ -1772,6 +1772,33 @@ fn offline_set(state: State<ScanState>) -> OfflineSet {
     }
 }
 
+/// Kicks off materialisation for a batch of dataless files, without waiting for it to
+/// finish: on macOS via `brctl download`, an async request the OS services in the
+/// background. Windows has no equivalent CLI trigger, so each file is opened and read
+/// on its own throwaway thread instead — a read is what hydrates a OneDrive
+/// placeholder, the same "any access blocks until downloaded" behaviour `is_dataless`'s
+/// doc comment already describes for iCloud. Either way, the caller polls
+/// `is_dataless` separately to find out when a file actually lands.
+#[cfg(target_os = "macos")]
+fn request_download(chunk: &[PathBuf]) {
+    let _ = std::process::Command::new("brctl")
+        .arg("download")
+        .args(chunk)
+        .status();
+}
+
+#[cfg(target_os = "windows")]
+fn request_download(chunk: &[PathBuf]) {
+    for path in chunk.to_vec() {
+        std::thread::spawn(move || {
+            let _ = std::fs::read(&path);
+        });
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn request_download(_chunk: &[PathBuf]) {}
+
 /// Ask the system to materialise the skipped files, then watch their block counts.
 /// Polling a stat never blocks, unlike reading, so this stays cancellable throughout
 /// and a stalled download is reported instead of hanging forever.
@@ -1787,10 +1814,7 @@ async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result
         if app.state::<Cancel>().0.load(Ordering::Relaxed) {
             return Err(CANCELLED.into());
         }
-        let _ = std::process::Command::new("brctl")
-            .arg("download")
-            .args(chunk)
-            .status();
+        request_download(chunk);
     }
 
     let total = paths.len();
@@ -1824,18 +1848,16 @@ async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result
                 return Err(format!("stalled:{ready}"));
             }
         }
-        // A single upfront `brctl download` does not reliably trigger every file in a
-        // large batch — real-world reports of it silently dropping some requests are
-        // common. Re-asking for whatever is still missing, every 20s, recovers those
-        // instead of spending the whole stall window just watching for a download
-        // that was never actually requested a second time.
+        // A single upfront request does not reliably trigger every file in a large
+        // batch — real-world reports of `brctl` silently dropping some requests are
+        // common, and a spawned Windows read can just as easily fail or get skipped.
+        // Re-asking for whatever is still missing, every 20s, recovers those instead
+        // of spending the whole stall window just watching for a download that was
+        // never actually requested a second time.
         tick += 1;
         if tick.is_multiple_of(20) {
             for chunk in remaining.chunks(40) {
-                let _ = std::process::Command::new("brctl")
-                    .arg("download")
-                    .args(chunk)
-                    .status();
+                request_download(chunk);
             }
         }
         std::thread::sleep(std::time::Duration::from_secs(1));
