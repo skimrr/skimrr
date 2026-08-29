@@ -2021,6 +2021,7 @@ fn days(state: State<ScanState>) -> Vec<Day> {
 /// locally-cached derivatives, so this never triggers an iCloud download just to
 /// render a thumbnail, and thumbnail work only happens for days that survive the
 /// `only_dates` filter, not the whole library.
+#[cfg(target_os = "macos")]
 #[tauri::command]
 fn photos_days(library_path: String, only_dates: Vec<String>) -> Result<Vec<Day>, String> {
     let lib = Path::new(&library_path);
@@ -2077,6 +2078,7 @@ fn photos_days(library_path: String, only_dates: Vec<String>) -> Result<Vec<Day>
 /// code path; `blur`/`kind` are always `None` since neither is computed for a
 /// Photos-library asset, and `preview` points at the cached derivative, not the
 /// original — this never triggers an iCloud download just to look at a day.
+#[cfg(target_os = "macos")]
 #[tauri::command]
 fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, String> {
     let lib = Path::new(&library_path);
@@ -2114,6 +2116,157 @@ fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, S
             })
         })
         .collect())
+}
+
+/// The small cached rendition for a Destination-folder cover, mirroring the source
+/// scan's own `thumb` field so both sides of the Gallery render at the same size.
+/// `None` when there is no cache directory or the file could not be decoded — the
+/// caller falls back to the original path, same as the source scan does.
+#[cfg(not(target_os = "macos"))]
+fn destination_thumb(path: &Path, cache: Option<&Path>) -> Option<String> {
+    let dir = cache?;
+    let bytes = analyze_file(path).thumb_jpeg?;
+    let file = dir.join(preview_name(path, "thumb"));
+    if !file.exists() {
+        let _ = std::fs::write(&file, bytes);
+    }
+    Some(file.to_string_lossy().into_owned())
+}
+
+/// Windows and Linux have no opaque photo library to read the way macOS Photos does —
+/// the Photos app on Windows, and every photo manager on Linux, just index whatever
+/// folders they are pointed at, the same folders the Source scan itself can already
+/// see. So the Destination here is a plain folder (typically the Pictures directory,
+/// see `default_photos_library_path`), walked the same way `run_scan` walks a Source
+/// folder, but scoped to `only_dates` and without any hashing or clustering — this is
+/// a look, not an analysis. Dataless (cloud-only OneDrive) files are skipped rather
+/// than triggering a download just to read a date.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn photos_days(
+    app: AppHandle,
+    library_path: String,
+    only_dates: Vec<String>,
+) -> Result<Vec<Day>, String> {
+    let root = Path::new(&library_path);
+    if !root.is_dir() {
+        return Err("not a directory".into());
+    }
+    let wanted: HashSet<String> = only_dates.into_iter().collect();
+    let cache = preview_cache_dir(&app);
+
+    let mut by_day: HashMap<String, (usize, u64, Vec<PathBuf>)> = HashMap::new();
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !(e.file_type().is_dir() && is_opaque_package(e.path())))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| is_image(e.path()))
+    {
+        let path = entry.into_path();
+        if is_dataless(&path) {
+            continue;
+        }
+        let Some((mtime, size)) = file_stamp(&path) else {
+            continue;
+        };
+        let key = day_key(taken_date(&path, mtime));
+        if !wanted.contains(&key) {
+            continue;
+        }
+        let day = by_day.entry(key).or_default();
+        day.0 += 1;
+        day.1 += size;
+        if day.2.len() < 4 {
+            day.2.push(path);
+        }
+    }
+
+    let mut out: Vec<Day> = by_day
+        .into_iter()
+        .map(|(key, (count, bytes, paths))| {
+            let covers = paths
+                .into_iter()
+                .map(|p| {
+                    destination_thumb(&p, cache.as_deref())
+                        .unwrap_or_else(|| p.to_string_lossy().into_owned())
+                })
+                .collect();
+            Day {
+                key,
+                count,
+                bytes,
+                covers,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.key.cmp(&b.key));
+    Ok(out)
+}
+
+/// The folder-backed counterpart to the macOS `photos_day_detail` above: every image
+/// in the Destination folder taken on exactly `date`, each given the same
+/// preview/thumb treatment `run_scan` gives a Source photo, so the two render
+/// identically once merged in the Gallery grid.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn photos_day_detail(
+    app: AppHandle,
+    library_path: String,
+    date: String,
+) -> Result<Vec<Photo>, String> {
+    let root = Path::new(&library_path);
+    if !root.is_dir() {
+        return Err("not a directory".into());
+    }
+    let cache = preview_cache_dir(&app);
+
+    let mut out = Vec::new();
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !(e.file_type().is_dir() && is_opaque_package(e.path())))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| is_image(e.path()))
+    {
+        let path = entry.into_path();
+        if is_dataless(&path) {
+            continue;
+        }
+        let Some((mtime, _)) = file_stamp(&path) else {
+            continue;
+        };
+        if day_key(taken_date(&path, mtime)) != date {
+            continue;
+        }
+        let analysis = analyze_file(&path);
+        let preview = match (&analysis.preview_jpeg, &cache) {
+            (Some(bytes), Some(dir)) => {
+                let file = dir.join(preview_name(&path, "grid"));
+                if !file.exists() {
+                    let _ = std::fs::write(&file, bytes);
+                }
+                file.to_string_lossy().into_owned()
+            }
+            _ => path.to_string_lossy().into_owned(),
+        };
+        let thumb = match (&analysis.thumb_jpeg, &cache) {
+            (Some(bytes), Some(dir)) => {
+                let file = dir.join(preview_name(&path, "thumb"));
+                if !file.exists() {
+                    let _ = std::fs::write(&file, bytes);
+                }
+                Some(file.to_string_lossy().into_owned())
+            }
+            _ => None,
+        };
+        let mut photo = photo_meta(&path, &analysis, preview);
+        photo.thumb = thumb;
+        out.push(photo);
+    }
+    Ok(out)
 }
 
 /// Move `paths` into a fresh batch folder under `trash_root`, writing a manifest
@@ -2247,6 +2400,7 @@ struct PhotosComparison {
 
 /// The library at the standard macOS location, when there is one — a starting point
 /// for the picker, not a guarantee (a renamed library, or several, are both normal).
+#[cfg(target_os = "macos")]
 #[tauri::command]
 fn default_photos_library_path(app: AppHandle) -> Option<String> {
     let path = app
@@ -2254,6 +2408,16 @@ fn default_photos_library_path(app: AppHandle) -> Option<String> {
         .picture_dir()
         .ok()?
         .join("Photos Library.photoslibrary");
+    path.exists().then(|| path.to_string_lossy().into_owned())
+}
+
+/// Windows and Linux have no library bundle to detect — the closest equivalent is
+/// simply the Pictures folder itself, the same default the Windows Photos app and
+/// most Linux photo tools already point at.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn default_photos_library_path(app: AppHandle) -> Option<String> {
+    let path = app.path().picture_dir().ok()?;
     path.exists().then(|| path.to_string_lossy().into_owned())
 }
 
