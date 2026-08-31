@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Skimrr — wide tile 310x150</title>
+<style>
+  /* Police de marque, la même que le carrousel : variable 400–900. */
+  @font-face {
+    font-family: "Schibsted Grotesk";
+    src: url("assets/schibsted-grotesk.woff2") format("woff2");
+    font-weight: 400 900;
+    font-display: block;
+  }
+
+  :root {
+    --ink: #1b1b1a;   /* fond de l'icône */
+    --paper: #f6f6f5; /* le S de l'icône */
+    --amber: #f0b429; /* la barre de l'icône */
+  }
+
+  html, body { margin: 0; background: transparent; }
+
+  /* 310 x 150 : la tuile large exigée par le manifeste MSIX, à l'échelle 100 %.
+     Le rayon de 30 px reprend les 20 % du côté court utilisés par l'icône carrée,
+     pour que les deux tuiles se ressemblent une fois épinglées côte à côte. */
+  .tile {
+    width: 310px;
+    height: 150px;
+    border-radius: 30px;
+    background: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Le verrou reprend la composition de l'icône — signe au-dessus, filet ambre
+     en dessous — mais remplace le S seul par le mot complet, la tuile large
+     ayant la place de nommer le produit. */
+  /* Le décalage de 3 px compense l'asymétrie de line-height: 1 — la boîte réserve
+     sous la ligne de base une place pour des jambages que « Skimrr » n'a pas, ce
+     qui posait l'encre 5 px trop bas dans la tuile. */
+  .lockup {
+    display: inline-flex;
+    flex-direction: column;
+    transform: translateY(-3px);
+  }
+
+  .word {
+    font-family: "Schibsted Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--paper);
+  }
+
+  /* La barre s'étire sur la largeur exacte du mot : c'est le flex parent qui la
+     dimensionne, rien n'est codé en dur. */
+  .bar {
+    margin-top: 15px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--amber);
+  }
+</style>
+<div class="tile">
+  <div class="lockup">
+    <div class="word">Skimrr</div>
+    <div class="bar"></div>
+  </div>
+</div>
