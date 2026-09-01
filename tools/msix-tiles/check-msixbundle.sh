@@ -16,27 +16,6 @@ if [ $# -ne 1 ]; then
   exit 2
 fi
 
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-
-# Un .msixbundle est un zip de .msix, eux-mêmes des zips : deux niveaux à ouvrir.
-unzip -o -q "$1" "*.msix" -d "$work"
-unzip -o -q "$work"/*.msix "Assets/*" -d "$work"
-
-python3 - "$work" <<'PY'
-import sys, glob, os
-from PIL import Image
-
-bad = False
-for path in sorted(glob.glob(os.path.join(sys.argv[1], "Assets", "*.png"))):
-    image = Image.open(path).convert("RGBA")
-    # Une tuile légitime a des centaines de couleurs ; un visuel de repli en a une.
-    colours = len(image.getcolors(maxcolors=10**6))
-    ok = colours > 1
-    bad |= not ok
-    verdict = "OK" if ok else "<-- VISUEL PAR DEFAUT"
-    print(f'  {os.path.basename(path):24} {str(image.size):11} couleurs={colours:4} {verdict}')
-
-print("\nRESULTAT:", "paquet OK" if not bad else "NE PAS SOUMETTRE")
-sys.exit(1 if bad else 0)
-PY
+# Delegates to the Python check, which the Windows CI job runs too — one definition
+# of "is this tile a placeholder", not two that can drift apart.
+exec python3 "$(dirname "$0")/check_bundle.py" "$1"
