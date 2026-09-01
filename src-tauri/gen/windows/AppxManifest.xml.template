@@ -39,7 +39,15 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <!-- All four tile sizes are declared, not just the wide one. Windows offers a
+             tile in Small, Medium, Wide and Large; anything left undeclared is filled
+             by scaling another size, which is how a set of real icons can still end up
+             looking like a placeholder somewhere. Tauri already generates every one of
+             these from the app icon, so there was never a reason to ship three. -->
+        <uap:DefaultTile
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png" />
       </uap:VisualElements>
 
 {{EXTENSIONS}}

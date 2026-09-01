@@ -1,0 +1,11 @@
+{
+  "name": "skimrr-tiles",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node shoot.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.8.0"
+  }
+}

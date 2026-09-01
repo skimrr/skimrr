@@ -52,6 +52,17 @@ jobs:
       # CLI, which isn't installed here (only the npm one, via @tauri-apps/cli).
       - run: npm run tauri:windows:build -- --runner npm
 
+      # Two submissions were rejected under Store policy 10.1.1.11 because a tile
+      # shipped as a flat colour — the bundler writes that silently when it has no
+      # source for a size, so the build passed and the defect surfaced days later as a
+      # rejection. Checked here instead, on the finished bundle, before it can be
+      # downloaded and uploaded to the Store.
+      - name: Verify tiles are not placeholders
+        shell: bash
+        run: |
+          python -m pip install --quiet pillow
+          python tools/msix-tiles/check_bundle.py src-tauri/target/msix/*.msixbundle
+
       - uses: actions/upload-artifact@v4
         with:
           name: skimrr-msix
