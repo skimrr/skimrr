@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { View, formatBytes, formatDate } from "../types";
+import { PhotoImage } from "./PhotoImage";
 
 type SortOrder = "asc" | "desc";
 
@@ -131,14 +131,15 @@ export function DuplicatesTab({
                       onClick={() => onKeep(gi, pos)}
                     >
                       <span className="thumb">
-                        <img
-                          src={convertFileSrc(photo.thumb ?? photo.preview)}
-                          alt={photo.name}
-                          loading="lazy"
-                          decoding="async"
-                        />
+                        <PhotoImage photo={photo} />
                         {kept[gi] === pos && (
                           <span className="badge">{t("group.kept")}</span>
+                        )}
+                        {/* Says where the file lives, which is why it is never the one
+                            offered up: Skimrr can compare against a Photos asset but
+                            cannot move it. */}
+                        {photo.library && (
+                          <span className="badge badge-library">{t("group.inLibrary")}</span>
                         )}
                         <span
                           className="expand"

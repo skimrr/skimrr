@@ -52,10 +52,12 @@
       "raw": "es el archivo raw",
       "pixels": "tiene más píxeles",
       "sharp": "es la más nítida",
-      "recent": "es la más reciente"
+      "recent": "es la más reciente",
+      "library": "ya está en Fotos"
     },
     "trash_one": "Mover {{count}} foto a la papelera",
-    "trash_other": "Mover {{count}} fotos a la papelera"
+    "trash_other": "Mover {{count}} fotos a la papelera",
+    "inLibrary": "En Fotos"
   },
   "blur": {
     "threshold": "Umbral de nitidez",
@@ -78,12 +80,15 @@
     "restoreHint_other": "{{count}} fotos fuera del lote. Haz clic otra vez para volver a incluirlas.",
     "cancel": "Cancelar",
     "confirm_one": "Mover {{count}} foto",
-    "confirm_other": "Mover {{count}} fotos"
+    "confirm_other": "Mover {{count}} fotos",
+    "photosNote_one": "{{count}} está en la fototeca de Fotos: Skimrr pide a Fotos que la elimine, y deshacerlo se hace en Fotos, no aquí.",
+    "photosNote_other": "{{count}} están en la fototeca de Fotos: Skimrr pide a Fotos que las elimine, y deshacerlo se hace en Fotos, no aquí."
   },
   "toast": {
     "moved_one": "{{count}} foto movida a la papelera",
     "moved_other": "{{count}} fotos movidas a la papelera",
-    "undo": "Deshacer"
+    "undo": "Deshacer",
+    "undoInPhotos": "Deshacer en Fotos"
   },
   "actions": {
     "back": "Analizar un nuevo proyecto",
@@ -93,7 +98,7 @@
     "scan": "El análisis de esta carpeta falló.",
     "trash": "Algunas fotos no se pudieron mover.",
     "library": "Esa carpeta es una fototeca gestionada. Skimrr no puede trabajar dentro sin arriesgar tus álbumes y ediciones. Exporta primero los originales a una carpeta normal y analiza esa.",
-    "import": "Algunas fotos no se pudieron importar a Fotos."
+    "share": "No se han podido abrir esas fotos con esa aplicación."
   },
   "theme": {
     "auto": "Tema: automático",
@@ -180,7 +185,17 @@
     "formats": "Por formato",
     "years": "Por año",
     "none": "Analiza una carpeta para ver su composición",
-    "other": "Otros"
+    "other": "Otros",
+    "share_one": "Compartir {{count}} foto conservada…",
+    "share_other": "Compartir las {{count}} fotos conservadas…",
+    "sharePick": "Elegir una aplicación",
+    "map": "Dónde se tomaron",
+    "mapNone": "Ninguna de estas fotos indica dónde se tomó.",
+    "mapCountries_one": "{{count}} país",
+    "mapPhotos_one": "{{count}} foto localizada",
+    "mapCountries_other": "{{count}} países",
+    "mapPhotos_other": "{{count}} fotos localizadas",
+    "devices": "Por dispositivo"
   },
   "compare": {
     "photos": "en este grupo",
@@ -216,34 +231,6 @@
     "compareHint": "Elige dos o más fotos (la marca en la esquina superior izquierda) para compararlas una junto a otra.",
     "compareCount_one": "{{count}} foto seleccionada",
     "compareCount_other": "{{count}} fotos seleccionadas"
-  },
-  "fusion": {
-    "library": "Fototeca",
-    "noLibrary": "No se detectó ninguna fototeca",
-    "changeLibrary": "Cambiar",
-    "compare": "Comparar con Fotos",
-    "comparing": "Comparando…",
-    "unreadable": "No se pudo leer esta fototeca. Comprueba que Skimrr tenga acceso total al disco en Ajustes del Sistema > Privacidad y seguridad.",
-    "intro": "Comprueba qué hay ya en Fotos antes de importar una tarjeta SD o una carpeta de material en bruto, para no duplicar nada.",
-    "alreadyKpi": "Ya en Fotos",
-    "missingKpi": "Por importar",
-    "reclaimKpi": "Recuperable de la fuente",
-    "alreadyTitle": "Ya en Fotos",
-    "missingTitle": "Por importar",
-    "alreadyNone": "Nada de esta fuente está todavía en Fotos.",
-    "missingNone": "Todo está ya en Fotos.",
-    "cleanAction_one": "Quitar {{count}} foto de la fuente",
-    "cleanAction_other": "Quitar {{count}} fotos de la fuente",
-    "importAction_one": "Importar {{count}} foto",
-    "importAction_other": "Importar {{count}} fotos",
-    "importConfirmTitle_one": "¿Importar esta foto a Fotos?",
-    "importConfirmTitle_other": "¿Importar estas {{count}} fotos a Fotos?",
-    "importConfirmBody_one": "Revísala abajo antes de importar.",
-    "importConfirmBody_other": "Revísalas abajo antes de importar.",
-    "importConfirmAction_one": "Importar {{count}} foto",
-    "importConfirmAction_other": "Importar {{count}} fotos",
-    "imported_one": "{{count}} foto importada a Fotos",
-    "imported_other": "{{count}} fotos importadas a Fotos"
   },
   "settings": {
     "title": "Ajustes",

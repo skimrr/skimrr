@@ -409,6 +409,17 @@ button {
   padding: 0.18rem 0.55rem;
   border-radius: 99px;
 }
+/* A library photo is always the keeper, so its marker cannot share the top-left corner
+   with the "kept" badge. Neutral rather than amber: this states where a file lives, it
+   is not the decision the accent is reserved for. */
+.badge-library {
+  top: auto;
+  bottom: 0.45rem;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 600;
+}
+
 .meta {
   display: flex;
   justify-content: space-between;
@@ -1296,6 +1307,10 @@ input[type="range"]::-moz-range-thumb {
   --series-1: #eb6834;
   --series-2: #2a78d6;
   --series-rest: #c9c8c2;
+  /* The map's "been there" fill. Aliased to the blue above rather than declared as a
+     fresh hue: the note on those two is not decorative — they were checked as a set,
+     and `var()` resolving late means this follows them into dark mode for free. */
+  --map-visited: var(--series-2);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -1311,6 +1326,33 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .stats { display: grid; gap: 1.1rem; margin-top: 1.4rem; }
+/* The composition panel is the one place that names the keepers ("everything else"),
+   so the button that hands them to an editor sits on its heading rather than floating
+   above the tab. `margin-bottom: 0` overrides the panel's own h2 spacing, which would
+   otherwise push the button off the heading's baseline. */
+.stats-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.stats-head h2 { margin-bottom: 0; }
+/* Icon-only variant of .btn-ghost: the text version's wide horizontal padding would
+   leave the glyph adrift in a pill, so it is squared off around the icon instead. */
+.btn-share { display: inline-flex; align-items: center; padding: 0.45rem; }
+.btn-share svg { width: 1rem; height: 1rem; }
+
+/* The map is one flat layer — no ocean, no graticule, no labels — because the only
+   question it answers is binary: photographed there, or not. Anything else drawn on it
+   would compete with that single reading. */
+.worldmap { display: grid; gap: 0.6rem; }
+.worldmap svg { display: block; width: 100%; height: auto; }
+.country {
+  fill: color-mix(in srgb, var(--muted) 16%, transparent);
+  /* Borders in the panel's own colour, so countries separate by a gap rather than by
+     a drawn line — at this scale a stroked outline turns small nations into blobs. */
+  stroke: var(--surface);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+.country.on { fill: var(--map-visited); }
+.map-caption,
+.map-empty { font-size: 0.8rem; color: var(--muted); }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.7rem; }
 .kpi {
   display: grid;
@@ -1516,32 +1558,6 @@ input[type="range"]::-moz-range-thumb {
 .day-facts { font-size: 0.72rem; color: var(--muted); }
 .notice .btn-ghost { margin-left: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem; }
 
-.fusion { display: grid; gap: 1.1rem; margin-top: 1.3rem; }
-.fusion-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.8rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-.fusion-library { display: grid; gap: 0.1rem; margin-right: auto; min-width: 0; }
-.fusion-library-label { font-size: 0.72rem; color: var(--muted); }
-.fusion-library-path {
-  font-size: 0.85rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fusion-error { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
-.fusion-intro { font-size: 0.9rem; color: var(--muted); max-width: 40rem; }
-.fusion-panel { display: grid; gap: 0.9rem; }
-.fusion-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.fusion-panel-head h2 { margin-bottom: 0; }
-.fusion-empty { font-size: 0.85rem; color: var(--muted); }
-
 .add-folders { display: grid; gap: 1rem; margin-top: 1.3rem; max-width: 40rem; }
 .add-folders-intro { font-size: 0.9rem; color: var(--muted); }
 .add-folders-list {
@@ -1583,3 +1599,17 @@ input[type="range"]::-moz-range-thumb {
 .add-folders-remove svg { width: 0.85rem; height: 0.85rem; }
 .add-folders-remove:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .add-folders .btn-primary { justify-self: start; }
+
+/* The half of a batch that Photos will delete rather than Skimrr move. Amber, not red:
+   it qualifies the action rather than warning against it — red is reserved for
+   deletion itself throughout this app. */
+.modal-warn {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left: 2px solid var(--accent);
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+}
+/* Stands where the undo button would be, so the toast keeps its shape when the batch
+   went somewhere this app cannot reach back into. */
+.toast-note { font-size: 0.8rem; opacity: 0.75; }

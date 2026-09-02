@@ -20,6 +20,15 @@ import { Activation } from "./components/Activation";
 
 type Screen = "home" | "scanning" | "results" | "trash";
 
+/* What the "share these to an editor" picker is allowed to select. A macOS app is a
+   bundle — a directory — and an open panel only offers it when its extension is
+   declared, so the filter is what makes Lightroom.app selectable at all. On Windows
+   and Linux the editor is a plain executable whose name carries no reliable extension,
+   so any filter there would hide the very thing being looked for. */
+const APP_FILTERS = navigator.userAgent.includes("Mac")
+  ? [{ name: "Application", extensions: ["app"] }]
+  : undefined;
+
 /* The fingerprint now only proposes: a model reviews every group it forms and drops the
    members that are different photographs. Measured on a real 138-photo trip folder,
    with and without that review:
@@ -216,7 +225,42 @@ export default function App() {
   useEffect(() => {
     screenRef.current = screen;
   }, [screen]);
-  const [error, setError] = useState<"scan" | "trash" | "library" | null>(null);
+  const [error, setError] = useState<
+    "scan" | "trash" | "library" | "share" | null
+  >(null);
+  /* The editor photos get handed to, remembered so every use after the first is a
+     single click. Forgotten again on failure, so a stale path — the app moved,
+     renamed or uninstalled — cannot leave the button permanently broken. */
+  const [shareApp, setShareApp] = useState<string | null>(() =>
+    localStorage.getItem("skimrr-share-app"),
+  );
+
+  const shareTo = useCallback(
+    async (paths: string[]) => {
+      setError(null);
+      let target = shareApp;
+      if (!target) {
+        const picked = await open({
+          multiple: false,
+          directory: false,
+          title: t("stats.sharePick"),
+          filters: APP_FILTERS,
+        });
+        if (typeof picked !== "string") return;
+        target = picked;
+      }
+      try {
+        await invoke("share_to_app", { appPath: target, paths });
+        localStorage.setItem("skimrr-share-app", target);
+        setShareApp(target);
+      } catch {
+        localStorage.removeItem("skimrr-share-app");
+        setShareApp(null);
+        setError("share");
+      }
+    },
+    [shareApp, t],
+  );
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("skimrr-theme") as Theme) ?? "auto",
   );
@@ -493,13 +537,34 @@ export default function App() {
     return list;
   }, []);
 
+  /* Two destinations, because there are two libraries. What was walked from disk goes
+     into Skimrr's own reversible trash; what belongs to Photos is deleted by Photos,
+     into its own "Recently Deleted". The batch is sorted here, from what it actually
+     holds, rather than every caller being asked to keep the two apart. */
   async function confirmTrash(paths: string[]) {
+    const batch = pendingTrash ?? [];
     setPendingTrash(null);
+    const fromPhotos = new Set(batch.filter((p) => p.library).map((p) => p.path));
+    const onDisk = paths.filter((path) => !fromPhotos.has(path));
+    const inPhotos = paths.filter((path) => fromPhotos.has(path));
+
     try {
-      const result = await invoke<TrashResult>("trash_photos", { paths });
+      let removed = 0;
+      let moved: TrashResult | null = null;
+      if (onDisk.length > 0) {
+        moved = await invoke<TrashResult>("trash_photos", { paths: onDisk });
+        removed += moved.count;
+      }
+      if (inPhotos.length > 0) {
+        removed += await invoke<number>("delete_from_photos", { paths: inPhotos });
+      }
       await refresh(simThreshold);
       await loadTrash().catch(() => undefined);
-      showToast(result);
+      /* One toast for the whole batch, but its undo only ever covers the disk half: the
+         batch id belongs to Skimrr's trash and means nothing to Photos. Without a batch
+         id the toast shows no undo at all, which is the honest outcome when everything
+         removed went to Photos. */
+      showToast({ batch_id: moved?.batch_id ?? "", count: removed });
     } catch {
       setError("trash");
       await refresh(simThreshold).catch(() => undefined);
@@ -539,9 +604,10 @@ export default function App() {
     }
   }
 
-  /** Reviewing is free; moving files is what the licence buys. */
+  /** Reviewing is free; removing anything is what the licence buys. */
   function requestTrash(photos: Photo[]) {
     if (photos.length === 0) return;
+    setError(null);
     if (licence?.activated) setPendingTrash(photos);
     else setAskLicence(photos);
   }
@@ -578,6 +644,23 @@ export default function App() {
       });
       setPhotosDays(result);
       setPhotosDaysChecked(true);
+      /* The same assets, merged into the scan itself so a loose copy on disk and the
+         copy already filed in Photos land in one duplicate group. `refresh` then does
+         the regrouping and resets the per-group keeper choices, exactly as it does
+         after a rescan — the merge itself deliberately builds no view, so the model
+         runs over the proposed groups once rather than twice.
+
+         Its own try: failing to analyse should cost the analysis, never the Gallery
+         the days it just loaded. */
+      try {
+        await invoke<number>("include_photos_in_scan", {
+          libraryPath,
+          onlyDates: days.map((d) => d.key),
+        });
+        await refresh(simThreshold);
+      } catch {
+        /* The Gallery still shows the days; nothing was merged. */
+      }
     } catch {
       setPhotosDays([]);
       setPhotosDaysError(true);
@@ -823,6 +906,7 @@ export default function App() {
           </nav>
 
           {error === "trash" && <p className="error">{t("error.trash")}</p>}
+          {error === "share" && <p className="error">{t("error.share")}</p>}
 
           {pickedDays.size > 0 && tab !== "days" && (
             <p className="notice">
@@ -850,7 +934,7 @@ export default function App() {
           )}
 
           {tab === "stats" && (
-            <StatsTab view={view} blurThreshold={blurThreshold} />
+            <StatsTab view={view} blurThreshold={blurThreshold} onShare={shareTo} />
           )}
 
           {tab === "duplicates" && (
@@ -1051,7 +1135,12 @@ export default function App() {
           onConfirm={emptyTrash}
         />
       )}
-      {toast && <UndoToast count={toast.count} onUndo={undo} />}
+      {toast && (
+        <UndoToast
+          count={toast.count}
+          onUndo={toast.batch_id ? undo : undefined}
+        />
+      )}
     </div>
   );
 }

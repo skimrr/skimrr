@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Without this key macOS does not prompt for photo library access, it denies
+       outright — verified with a probe: a binary carrying no usage description went
+       straight from notDetermined to denied, while the same code inside a bundle that
+       declares one produced a real prompt and was granted. -->
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Skimrr compare les photos de votre photothèque à celles de vos dossiers pour repérer les doublons, et ne retire de Photos que ce que vous confirmez.</string>
+</dict>
+</plist>

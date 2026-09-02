@@ -52,10 +52,12 @@
       "raw": "it is the raw file",
       "pixels": "it has more pixels",
       "sharp": "it is the sharpest",
-      "recent": "it is the most recent"
+      "recent": "it is the most recent",
+      "library": "it is already in Photos"
     },
     "trash_one": "Move {{count}} photo to trash",
-    "trash_other": "Move {{count}} photos to trash"
+    "trash_other": "Move {{count}} photos to trash",
+    "inLibrary": "In Photos"
   },
   "blur": {
     "threshold": "Sharpness threshold",
@@ -78,12 +80,15 @@
     "restoreHint_other": "{{count}} photos pulled out of this batch. Click them again to put them back.",
     "cancel": "Cancel",
     "confirm_one": "Move {{count}} photo",
-    "confirm_other": "Move {{count}} photos"
+    "confirm_other": "Move {{count}} photos",
+    "photosNote_one": "{{count}} of these is in the Photos library: Skimrr asks Photos to remove it, and undoing that is done in Photos, not here.",
+    "photosNote_other": "{{count}} of these are in the Photos library: Skimrr asks Photos to remove them, and undoing that is done in Photos, not here."
   },
   "toast": {
     "moved_one": "{{count}} photo moved to trash",
     "moved_other": "{{count}} photos moved to trash",
-    "undo": "Undo"
+    "undo": "Undo",
+    "undoInPhotos": "Undo in Photos"
   },
   "actions": {
     "back": "Scan a new project",
@@ -93,7 +98,7 @@
     "scan": "Something went wrong while scanning this folder.",
     "trash": "Some photos could not be moved.",
     "library": "That folder is a managed photo library. Skimrr cannot work inside it without risking your albums and edits. Export the originals to a normal folder first, then scan that.",
-    "import": "Some photos could not be imported into Photos."
+    "share": "Those photos could not be opened with that application."
   },
   "theme": {
     "auto": "Theme: auto",
@@ -180,7 +185,17 @@
     "formats": "By format",
     "years": "By year",
     "none": "Scan a folder to see its breakdown",
-    "other": "Other"
+    "other": "Other",
+    "share_one": "Share {{count}} kept photo…",
+    "share_other": "Share {{count}} kept photos…",
+    "sharePick": "Choose an application",
+    "map": "Where these were taken",
+    "mapNone": "None of these photos records where it was taken.",
+    "mapCountries_one": "{{count}} country",
+    "mapPhotos_one": "{{count}} located photo",
+    "mapCountries_other": "{{count}} countries",
+    "mapPhotos_other": "{{count}} located photos",
+    "devices": "By device"
   },
   "compare": {
     "photos": "in this group",
@@ -216,34 +231,6 @@
     "compareHint": "Pick two or more photos (the mark in the top-left corner) to compare them side by side.",
     "compareCount_one": "{{count}} photo selected",
     "compareCount_other": "{{count}} photos selected"
-  },
-  "fusion": {
-    "library": "Photo library",
-    "noLibrary": "No library detected",
-    "changeLibrary": "Change",
-    "compare": "Compare with Photos",
-    "comparing": "Comparing…",
-    "unreadable": "Could not read this library. Check that Skimrr has Full Disk Access in System Settings > Privacy & Security.",
-    "intro": "Check what's already in Photos before importing an SD card or a folder of raw footage, so nothing gets duplicated.",
-    "alreadyKpi": "Already in Photos",
-    "missingKpi": "To import",
-    "reclaimKpi": "Reclaimable from source",
-    "alreadyTitle": "Already in Photos",
-    "missingTitle": "To import",
-    "alreadyNone": "Nothing from this source is in Photos yet.",
-    "missingNone": "Everything is already in Photos.",
-    "cleanAction_one": "Clean {{count}} photo from the source",
-    "cleanAction_other": "Clean {{count}} photos from the source",
-    "importAction_one": "Import {{count}} photo",
-    "importAction_other": "Import {{count}} photos",
-    "importConfirmTitle_one": "Import this photo into Photos?",
-    "importConfirmTitle_other": "Import these {{count}} photos into Photos?",
-    "importConfirmBody_one": "Review it below before importing.",
-    "importConfirmBody_other": "Review them below before importing.",
-    "importConfirmAction_one": "Import {{count}} photo",
-    "importConfirmAction_other": "Import {{count}} photos",
-    "imported_one": "{{count}} photo imported into Photos",
-    "imported_other": "{{count}} photos imported into Photos"
   },
   "settings": {
     "title": "Settings",

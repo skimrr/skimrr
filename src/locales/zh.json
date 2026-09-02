@@ -49,9 +49,11 @@
       "raw": "它是 raw 文件",
       "pixels": "它的像素更多",
       "sharp": "它最清晰",
-      "recent": "它最新"
+      "recent": "它最新",
+      "library": "它已在照片图库中"
     },
-    "trash_other": "将 {{count}} 张照片移入回收站"
+    "trash_other": "将 {{count}} 张照片移入回收站",
+    "inLibrary": "照片图库"
   },
   "blur": {
     "threshold": "清晰度阈值",
@@ -68,11 +70,13 @@
     "excludeHint": "点击照片可将其排除在本次操作之外。",
     "restoreHint_other": "已排除 {{count}} 张，再次点击可重新加入。",
     "cancel": "取消",
-    "confirm_other": "移入 {{count}} 张"
+    "confirm_other": "移入 {{count}} 张",
+    "photosNote_other": "其中 {{count}} 张位于「照片」图库：Skimrr 会请求「照片」将其删除，撤销需在「照片」中进行，而非此处。"
   },
   "toast": {
     "moved_other": "已将 {{count}} 张照片移入回收站",
-    "undo": "撤销"
+    "undo": "撤销",
+    "undoInPhotos": "在「照片」中撤销"
   },
   "actions": {
     "back": "分析新项目",
@@ -82,7 +86,7 @@
     "scan": "分析此文件夹时出错。",
     "trash": "部分照片无法移动。",
     "library": "该文件夹是受管理的照片图库。Skimrr 无法在其中操作，否则可能损坏您的相簿与编辑。请先将原片导出到普通文件夹，再进行扫描。",
-    "import": "部分照片未能导入到“照片”。"
+    "share": "无法用该应用程序打开这些照片。"
   },
   "theme": {
     "auto": "主题：自动",
@@ -166,7 +170,14 @@
     "formats": "按格式",
     "years": "按年份",
     "none": "扫描文件夹后可查看构成",
-    "other": "其他"
+    "other": "其他",
+    "share_other": "将保留的 {{count}} 张照片发送到…",
+    "sharePick": "选择应用程序",
+    "map": "拍摄地点",
+    "mapNone": "这些照片都没有记录拍摄地点。",
+    "mapCountries_other": "{{count}} 个国家",
+    "mapPhotos_other": "{{count}} 张有定位",
+    "devices": "按设备"
   },
   "compare": {
     "photos": "张（本组）",
@@ -199,28 +210,6 @@
     "compareSelect": "选择以比较",
     "compareHint": "选择两张或更多照片（左上角的标记）即可并排比较。",
     "compareCount_other": "已选择 {{count}} 张"
-  },
-  "fusion": {
-    "library": "照片图库",
-    "noLibrary": "未检测到照片图库",
-    "changeLibrary": "更改",
-    "compare": "与“照片”比对",
-    "comparing": "正在比对…",
-    "unreadable": "无法读取该图库。请在系统设置 > 隐私与安全性中确认 Skimrr 已获得完全磁盘访问权限。",
-    "intro": "在导入 SD 卡或素材文件夹之前，先确认“照片”中已有哪些内容，避免重复导入。",
-    "alreadyKpi": "已在“照片”中",
-    "missingKpi": "待导入",
-    "reclaimKpi": "源文件夹可释放",
-    "alreadyTitle": "已在“照片”中",
-    "missingTitle": "待导入",
-    "alreadyNone": "此来源的照片还没有出现在“照片”中。",
-    "missingNone": "全部已在“照片”中。",
-    "cleanAction_other": "从源文件夹清理 {{count}} 张",
-    "importAction_other": "导入 {{count}} 张",
-    "importConfirmTitle_other": "将这 {{count}} 张照片导入“照片”？",
-    "importConfirmBody_other": "请在下方确认后再导入。",
-    "importConfirmAction_other": "导入 {{count}} 张",
-    "imported_other": "已将 {{count}} 张照片导入“照片”"
   },
   "settings": {
     "title": "设置",

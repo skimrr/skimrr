@@ -13,6 +13,20 @@ export interface Photo {
       absent (an older cache entry, or a Photos-library photo, whose own cached
       derivative is already thumbnail-sized). Never use it for a full-screen view. */
   thumb: string | null;
+  /** True for a photo read out of the Photos library rather than walked on disk. It
+      can never be trashed (Photos exposes no way to delete an asset, and its path
+      points inside the library bundle) and carries no sharpness score. */
+  library: boolean;
+  /** Decimal degrees from the file's own EXIF GPS tags, null when it carries none —
+      which is most of a folder unless the photos came off a phone. */
+  lat: number | null;
+  lon: number | null;
+  /** Uppercase extension of the original file (HEIC, JPG, ARW…). Separate from `name`,
+      which for a library photo is the camera model — splitting that at the last dot
+      would file "iPhone 13" as a picture format. */
+  format: string;
+  /** What took the photo, from EXIF; null for anything recording no model. */
+  device: string | null;
   /** Uppercase extension for camera raw files (ARW, CR2…), else null. */
   kind: string | null;
 }
@@ -36,11 +50,6 @@ export interface View {
 export interface TrashResult {
   batch_id: string;
   count: number;
-}
-
-export interface PhotosComparison {
-  already_in_photos: string[];
-  missing_from_photos: string[];
 }
 
 export interface TrashedPhoto {

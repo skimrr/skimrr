@@ -61,6 +61,40 @@ struct Photo {
     /// entry, or the encode failed); callers fall back to `preview`.
     #[serde(default)]
     thumb: Option<String>,
+    /// True for an asset read out of the Photos library rather than walked on disk.
+    ///
+    /// Two consequences, both load-bearing: it is never a candidate for the trash —
+    /// Photos exposes no way to delete a `media item`, so offering it would be offering
+    /// something that cannot happen — and it carries no sharpness score, because the
+    /// only copy available locally is a resampled derivative whose detail density is
+    /// not comparable with a full-size original's.
+    #[serde(default)]
+    library: bool,
+    /// Decimal degrees from the file's own EXIF GPS tags, absent on anything that was
+    /// not geotagged — which is most of a scanned folder unless it came off a phone.
+    #[serde(default)]
+    lat: Option<f64>,
+    #[serde(default)]
+    lon: Option<f64>,
+    /// Pixel size of what `preview` actually points at, when that is materially smaller
+    /// than the photograph itself.
+    ///
+    /// Only ever set for a library asset whose original is not on this Mac: `width` and
+    /// `height` then describe a frame nobody can see here, and the card would otherwise
+    /// claim 4624x3468 while showing a 480x360 stand-in — which reads as the photograph
+    /// being poor rather than the preview being small.
+    #[serde(default)]
+    preview_dims: Option<[u32; 2]>,
+    /// Uppercase extension of the original file (`HEIC`, `JPG`, `ARW`…). Kept apart
+    /// from `name`, which for a library asset is the camera model rather than a
+    /// filename — deriving a format by cutting at the last dot would read "iPhone 13"
+    /// as a picture format.
+    #[serde(default)]
+    format: String,
+    /// What took the photograph, from EXIF. `None` for anything that records no model:
+    /// a screenshot, an export that dropped its metadata, a scan.
+    #[serde(default)]
+    device: Option<String>,
     /// Uppercase extension for camera raw files, else None. Present because a raw's
     /// true sensor size is vendor-specific; we show the format rather than the
     /// dimensions of the preview we decoded.
@@ -326,6 +360,14 @@ fn fingerprint(rgb: &image::RgbImage) -> Option<u128> {
     /// A real but very dark photograph measures around 17; a gradient sky, 1.3.
     const MIN_STRUCTURE: f64 = 6.0;
 
+    /* Do not try to speed this up by averaging the image down before the resize.
+       Measured on 400 real library derivatives and 31 full-size photographs: a /8
+       pre-reduction is 3.7x faster (15.9s -> 4.3s) and leaves most hashes bit-identical,
+       but it pushes a HEIC and its own JPEG export past the 6-bit equivalence
+       `heic_pipeline_groups_with_its_jpeg_export` asserts — iPhone photos would stop
+       grouping with their exports. A /2 pre-reduction keeps that property but buys only
+       1.4x, which is not worth perturbing a fingerprint whose separation margin was
+       measured. The cost is paid once per file and cached; that is the right lever. */
     let luma = image::imageops::resize(rgb, 9, 9, FilterType::Triangle);
     let grey = |x: u32, y: u32| {
         let p = luma.get_pixel(x, y).0;
@@ -1068,6 +1110,71 @@ fn taken_date(path: &Path, mtime: i64) -> i64 {
     mtime
 }
 
+/// One coordinate in decimal degrees, from EXIF's split representation: three
+/// rationals (degrees, minutes, seconds) in one tag, and the hemisphere letter in
+/// another. Both halves are needed — the numbers alone are unsigned, so without the
+/// ref tag a photo taken in Santiago is indistinguishable from one taken in Boston.
+fn dms_to_degrees(meta: &exif::Exif, coord: exif::Tag, hemisphere: exif::Tag, negative: &str) -> Option<f64> {
+    let field = meta.get_field(coord, exif::In::PRIMARY)?;
+    let parts = match &field.value {
+        exif::Value::Rational(v) if v.len() >= 3 => v,
+        _ => return None,
+    };
+    let degrees = parts[0].to_f64() + parts[1].to_f64() / 60.0 + parts[2].to_f64() / 3600.0;
+    if !degrees.is_finite() {
+        return None;
+    }
+    let south_or_west = meta
+        .get_field(hemisphere, exif::In::PRIMARY)
+        .map(|f| f.display_value().to_string().trim().to_ascii_uppercase() == negative)
+        .unwrap_or(false);
+    Some(if south_or_west { -degrees } else { degrees })
+}
+
+/// What the scan reads out of one EXIF block: where the photograph was taken, and what
+/// took it.
+///
+/// Read together because they sit in the same block. Opening and parsing a file twice
+/// to pull two fields out of it is the kind of waste that only becomes visible once a
+/// folder has thousands of them in it.
+#[derive(Default)]
+struct ExifFacts {
+    coords: Option<(f64, f64)>,
+    model: Option<String>,
+}
+
+fn exif_facts(path: &Path) -> ExifFacts {
+    let Ok(file) = std::fs::File::open(path) else {
+        return ExifFacts::default();
+    };
+    let mut reader = std::io::BufReader::new(file);
+    let Ok(meta) = exif::Reader::new().read_from_container(&mut reader) else {
+        return ExifFacts::default();
+    };
+
+    let coords = (|| {
+        let lat = dms_to_degrees(&meta, exif::Tag::GPSLatitude, exif::Tag::GPSLatitudeRef, "S")?;
+        let lon = dms_to_degrees(&meta, exif::Tag::GPSLongitude, exif::Tag::GPSLongitudeRef, "W")?;
+        // A camera that writes the tags but never got a fix leaves zeroes, which point
+        // at Null Island in the Gulf of Guinea. Nothing is ever photographed there, so
+        // the reading is discarded rather than drawn as a visit to the Atlantic.
+        if lat == 0.0 && lon == 0.0 {
+            return None;
+        }
+        (lat.abs() <= 90.0 && lon.abs() <= 180.0).then_some((lat, lon))
+    })();
+
+    let model = meta
+        .get_field(exif::Tag::Model, exif::In::PRIMARY)
+        .and_then(|f| {
+            let raw = f.display_value().to_string();
+            let trimmed = raw.trim_matches('"').trim().to_string();
+            (!trimmed.is_empty()).then_some(trimmed)
+        });
+
+    ExifFacts { coords, model }
+}
+
 fn photo_meta(path: &Path, analysis: &Analysis, preview: String) -> Photo {
     let meta = path.metadata().ok();
     let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
@@ -1084,6 +1191,9 @@ fn photo_meta(path: &Path, analysis: &Analysis, preview: String) -> Photo {
             .map(|d| (d.width as u32, d.height as u32))
     });
     let kind = is_raw(path).then(|| ext_of(path).unwrap_or_default().to_ascii_uppercase());
+    // Raw containers keep their tags in vendor IFDs the generic reader cannot open, so
+    // this yields nothing for them — the same limitation `taken` works around above.
+    let facts = exif_facts(path);
     Photo {
         path: path.to_string_lossy().into_owned(),
         name: path
@@ -1099,6 +1209,12 @@ fn photo_meta(path: &Path, analysis: &Analysis, preview: String) -> Photo {
         blur: analysis.blur,
         preview,
         thumb: None,
+        library: false,
+        preview_dims: None,
+        lat: facts.coords.map(|c| c.0),
+        lon: facts.coords.map(|c| c.1),
+        format: ext_of(path).unwrap_or_default().to_ascii_uppercase(),
+        device: facts.model,
         kind,
     }
 }
@@ -1132,7 +1248,7 @@ fn preview_name(path: &Path, tag: &str) -> String {
 
 /// Bump when the analysis itself changes meaning, so old entries are not trusted for
 /// results they were never computed for.
-const SCAN_CACHE_VERSION: u32 = 4;
+const SCAN_CACHE_VERSION: u32 = 6;
 
 #[derive(Serialize, Deserialize)]
 struct CachedFile {
@@ -1152,6 +1268,41 @@ struct ScanCache {
 /// Scanning a different combination of folders — in particular, adding another
 /// folder to a scan already on screen — reuses whatever it already has decoded
 /// instead of starting over: only genuinely new or changed files cost anything.
+/// Folds `records` into the shared cache, keyed by each file's own path.
+///
+/// Reloads rather than taking the copy its caller read earlier: another scan — a
+/// different folder combination, run since or concurrently — may have written entries
+/// this one never touched, and those have to survive. This is one ever-growing cache
+/// shared by every folder ever scanned, not one scoped to a single run.
+fn save_to_scan_cache(cache_file: Option<&PathBuf>, records: &[Record]) {
+    let Some(path) = cache_file else {
+        return;
+    };
+    let mut merged = load_scan_cache(Some(path));
+    merged.version = SCAN_CACHE_VERSION;
+    for r in records {
+        let Some(stamp) = file_stamp(Path::new(&r.photo.path)) else {
+            continue;
+        };
+        merged.files.insert(
+            r.photo.path.clone(),
+            CachedFile {
+                mtime: stamp.0,
+                size: stamp.1,
+                record: r.clone(),
+            },
+        );
+    }
+    // An empty index carries nothing and still shows up as a file the settings panel
+    // has to explain. A folder with nothing analysable leaves no trace.
+    if merged.files.is_empty() {
+        let _ = std::fs::remove_file(path);
+    } else if let Ok(bytes) = serde_json::to_vec(&merged) {
+        // Best effort: a cache that cannot be written costs time, never correctness.
+        let _ = std::fs::write(path, bytes);
+    }
+}
+
 fn scan_cache_path(app: &AppHandle) -> Option<PathBuf> {
     let dir = app.path().app_cache_dir().ok()?.join("scans");
     std::fs::create_dir_all(&dir).ok()?;
@@ -1451,36 +1602,7 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
         return Err(CANCELLED.into());
     }
 
-    if let Some(path) = &cache_file {
-        // Reload rather than reuse the `cached` read earlier in this function: another
-        // scan (a different folder combination, run concurrently or since) may have
-        // written entries this one never touched, and those must survive too — this
-        // is a shared, ever-growing cache now, not one scoped to a single folder set.
-        let mut merged = load_scan_cache(Some(path));
-        merged.version = SCAN_CACHE_VERSION;
-        for r in &records {
-            let Some(stamp) = file_stamp(Path::new(&r.photo.path)) else {
-                continue;
-            };
-            merged.files.insert(
-                r.photo.path.clone(),
-                CachedFile {
-                    mtime: stamp.0,
-                    size: stamp.1,
-                    record: r.clone(),
-                },
-            );
-        }
-        // An empty index carries nothing and still shows up as a file the settings
-        // panel has to explain. A folder with nothing analysable leaves no trace.
-        if merged.files.is_empty() {
-            let _ = std::fs::remove_file(path);
-        } else
-        // Best effort: a cache that cannot be written costs time, never correctness.
-        if let Ok(bytes) = serde_json::to_vec(&merged) {
-            let _ = std::fs::write(path, bytes);
-        }
-    }
+    save_to_scan_cache(cache_file.as_ref(), &records);
 
     let state = app.state::<ScanState>();
     let mut data = state.0.lock().unwrap();
@@ -1505,12 +1627,20 @@ fn uf_union(parent: &mut [usize], a: usize, b: usize) {
     }
 }
 
-/// The order in which one rendition of a shot beats another: a raw before its export,
-/// then the larger frame, then the sharper one, then the more recent.
+/// The order in which one rendition of a shot beats another: the copy already in the
+/// Photos library before any copy on disk, then a raw before its export, then the
+/// larger frame, then the sharper one, then the more recent.
+///
+/// The library comes first for a reason that is still not about quality, though no
+/// longer about impossibility: a library asset carries no sharpness score at all — only
+/// a resampled derivative is available locally — so every criterion below it would
+/// judge it on a blank. Defaulting to the copy that is already filed and backed up, and
+/// clearing the loose one, is the sane resolution of a group spanning both sources.
+/// It is only a default: choosing the other copy now genuinely works.
 fn better(a: &Photo, b: &Photo) -> std::cmp::Ordering {
-    a.kind
-        .is_some()
-        .cmp(&b.kind.is_some())
+    a.library
+        .cmp(&b.library)
+        .then_with(|| a.kind.is_some().cmp(&b.kind.is_some()))
         .then_with(|| (a.width as u64 * a.height as u64).cmp(&(b.width as u64 * b.height as u64)))
         .then_with(|| a.blur.unwrap_or(0.0).total_cmp(&b.blur.unwrap_or(0.0)))
         .then_with(|| a.taken.cmp(&b.taken))
@@ -1522,6 +1652,9 @@ fn better(a: &Photo, b: &Photo) -> std::cmp::Ordering {
 /// of the order: `better` decides, this only reports. None means the two are equal on
 /// every count, which happens and should be admitted rather than dressed up.
 fn deciding_reason(keeper: &Photo, rival: &Photo) -> Option<&'static str> {
+    if keeper.library != rival.library {
+        return Some("library");
+    }
     if keeper.kind.is_some() != rival.kind.is_some() {
         return Some("raw");
     }
@@ -1707,9 +1840,16 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
         })
         .collect();
 
+    /* Groups wholly inside the Photos library used to be dropped as unresolvable. They
+       are not: their surplus copies can be handed to Photos for deletion like any
+       other, so they are shown and counted like any other. */
     let reclaimable = |g: &Group| {
-        let total: u64 = g.indices.iter().map(|&i| records[i].photo.size).sum();
-        total - records[g.indices[g.suggested]].photo.size
+        g.indices
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| *position != g.suggested)
+            .map(|(_, &i)| records[i].photo.size)
+            .sum::<u64>()
     };
     groups.sort_by_key(|g| std::cmp::Reverse(reclaimable(g)));
     let reclaimable_bytes = groups.iter().map(reclaimable).sum();
@@ -2099,7 +2239,18 @@ fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, S
             // read straight from the cached derivative's own EXIF, is what a person
             // actually recognises a shot by. Falls back to the UUID name on whatever
             // has none — a screenshot, an edited export, anything not camera-shot.
-            let name = camera_model(&thumb).unwrap_or(a.filename);
+            // Photos keeps the original extension on the UUID name it renames to, so
+            // the real format survives even though the filename itself is noise.
+            let format = Path::new(&a.filename)
+                .extension()
+                .map(|e| e.to_string_lossy().to_ascii_uppercase())
+                .unwrap_or_default();
+            let device = camera_model(&thumb);
+            let name = device.clone().unwrap_or(a.filename);
+            // Header only, no decode: `imagesize` reads the dimensions and stops.
+            let preview_dims = imagesize::size(&thumb)
+                .ok()
+                .map(|d| [d.width as u32, d.height as u32]);
             Some(Photo {
                 path: preview.clone(),
                 name,
@@ -2112,6 +2263,15 @@ fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, S
                 // Photos' own cached derivative is already thumbnail-sized — no
                 // second, smaller rendition to generate here.
                 thumb: None,
+                library: true,
+                // Straight from `Photos.sqlite`: the cached derivative this points at
+                // carries no EXIF of its own, but the library's database has the
+                // position for every asset it knows about.
+                lat: a.lat,
+                lon: a.lon,
+                preview_dims,
+                format,
+                device,
                 kind: None,
             })
         })
@@ -2404,20 +2564,130 @@ fn trash_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("trash"))
 }
 
-/// Generous on purpose: `fusion::already_in_photos` only leans on this as a sanity
-/// bound against a same-name-same-size coincidence, not as the deciding signal (see
-/// its own doc comment), so there is little to gain and real false negatives to risk
-/// by making it tight when the actual timezone relationship between a source file's
-/// naively-parsed EXIF/MP4 date and Photos' own `ZDATECREATED` has not been verified.
-const PHOTOS_MATCH_DATE_TOLERANCE_SECS: i64 = 48 * 3600;
+/// Brings the Photos library's own photographs into the scan, so a loose copy on disk
+/// and the copy already filed in Photos land in the same duplicate group.
+///
+/// Scoped by `only_dates` to the days the scan already covers, for the same reason
+/// `photos_days` is: nobody asking about one folder has asked to have their whole
+/// library pulled in.
+///
+/// What these records deliberately are not:
+///
+/// - **Not sharpness-scored.** The only copy on this Mac is a resampled derivative —
+///   an "Optimize Mac Storage" library keeps almost no originals locally — and its
+///   detail density is not comparable with a full-size frame's. The blur threshold is
+///   a percentile of the scan's own scores, so mixing the two populations would
+///   misjudge both. `blur` stays `None`, which every blur reader already skips.
+/// - **Not SHA'd.** Byte equality is a claim about files, and the derivative is not
+///   the asset. The perceptual fingerprint is the honest comparison here, and it is
+///   unbothered by the rescale: it reduces any frame to a small grid regardless.
+/// - **Not deletable.** `Photo::library` carries that downstream; `better` also ranks
+///   these first so the surplus copy proposed is always the one on disk.
+///
+/// Merges only; building the view is `regroup`'s job, which the caller runs next. Two
+/// passes would mean running the model over every proposed group twice.
+///
+/// Read-only against the library, so no licence gate — the gate is on the trash.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn include_photos_in_scan(
+    app: AppHandle,
+    state: State<ScanState>,
+    library_path: String,
+    only_dates: Vec<String>,
+) -> Result<usize, String> {
+    let lib = Path::new(&library_path);
+    let cache_file = scan_cache_path(&app);
+    let cached = load_scan_cache(cache_file.as_ref());
+    let wanted: HashSet<String> = only_dates.into_iter().collect();
+    let candidates: Vec<fusion::PhotosAsset> = fusion::read_photos_index(lib)?
+        .into_iter()
+        .filter(|a| !a.trashed && !a.hidden)
+        .filter(|a| a.taken.is_some_and(|t| wanted.contains(&day_key(t))))
+        .collect();
 
-#[derive(Serialize)]
-struct PhotosComparison {
-    /// Source paths that already match something in Photos by filename + exact
-    /// original byte size — candidates to clear out of the source once confirmed.
-    already_in_photos: Vec<String>,
-    /// Source paths with no match in the library — candidates to import.
-    missing_from_photos: Vec<String>,
+    // Decoding each derivative is the whole cost here, and every one is independent.
+    let records: Vec<Record> = candidates
+        .into_par_iter()
+        .filter_map(|asset| {
+            let taken = asset.taken?;
+            let thumb = fusion::find_thumbnail(lib, &asset.uuid)?;
+            let preview = thumb.to_string_lossy().into_owned();
+
+            /* Decoding and hashing is the entire cost of this command — measured at
+               about 60 ms per asset, against under 2 ms for everything else put
+               together. A derivative that has not changed gives the same answer it
+               gave last time, so the second time this is asked it costs nothing. The
+               `library` check keeps a folder photo that happens to share a path — an
+               exported copy sitting where a derivative used to be — from being read
+               back as a library record. */
+            if let (Some(hit), Some(stamp)) = (cached.files.get(&preview), file_stamp(&thumb)) {
+                if hit.mtime == stamp.0 && hit.size == stamp.1 && hit.record.photo.library {
+                    return Some(hit.record.clone());
+                }
+            }
+
+            let rgb = image::open(&thumb).ok()?.to_rgb8();
+            let format = Path::new(&asset.filename)
+                .extension()
+                .map(|e| e.to_string_lossy().to_ascii_uppercase())
+                .unwrap_or_default();
+            let device = camera_model(&thumb);
+            let name = device.clone().unwrap_or(asset.filename);
+            // Header only, no decode: `imagesize` reads the dimensions and stops.
+            let preview_dims = imagesize::size(&thumb)
+                .ok()
+                .map(|d| [d.width as u32, d.height as u32]);
+            Some(Record {
+                photo: Photo {
+                    path: preview.clone(),
+                    name,
+                    // The asset's own figures, not the derivative's: they describe the
+                    // photograph Photos holds, which is what the group is about.
+                    size: asset.size.unwrap_or(0),
+                    width: asset.width,
+                    height: asset.height,
+                    taken,
+                    blur: None,
+                    preview,
+                    thumb: None,
+                    library: true,
+                    lat: asset.lat,
+                    lon: asset.lon,
+                    preview_dims,
+                    format,
+                    device,
+                    kind: None,
+                },
+                sha: None,
+                phash: fingerprint(&rgb),
+            })
+        })
+        .collect();
+
+    save_to_scan_cache(cache_file.as_ref(), &records);
+
+    let merged = records.len();
+    let mut data = state.0.lock().unwrap();
+    // Idempotent: asking twice must refresh the library's contribution, not double it.
+    data.records.retain(|r| !r.photo.library);
+    data.records.extend(records);
+    Ok(merged)
+}
+
+/// Windows and Linux have no library bundle to pull from — what `photos_days` shows
+/// there is the Pictures folder, whose files are ordinary files the user can already
+/// add to a scan as a folder. Nothing to merge, so the view is handed back untouched.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn include_photos_in_scan(
+    app: AppHandle,
+    state: State<ScanState>,
+    library_path: String,
+    only_dates: Vec<String>,
+) -> Result<usize, String> {
+    let _ = (app, state, library_path, only_dates);
+    Ok(0)
 }
 
 /// The library at the standard macOS location, when there is one — a starting point
@@ -2443,59 +2713,48 @@ fn default_photos_library_path(app: AppHandle) -> Option<String> {
     path.exists().then(|| path.to_string_lossy().into_owned())
 }
 
-/// "Retour de vacances" workflow, step 2: for every photo already found in the current
-/// scan (step 1, the ordinary Source-folder scan this app already does), checks
-/// whether it is already safely in the Destination library, so the caller can decide
-/// what actually needs importing versus what can already be cleared from the source.
+/// Hands a set of files to another application — sending the photos that survived a
+/// clean-up on to an editor (Lightroom, Capture One, Affinity…) without leaving Skimrr.
 ///
-/// Read-only end to end — no file is imported or trashed here, only categorised — so,
-/// unlike `trash_photos`/`import_to_photos`, this is not gated behind a licence.
+/// Deliberately launches the chosen app on the originals rather than copying them
+/// anywhere: every serious photo editor imports by reference, and staging a second set
+/// on disk would recreate exactly the duplication this app exists to remove.
+#[cfg(target_os = "macos")]
 #[tauri::command]
-fn compare_with_photos(
-    state: State<ScanState>,
-    library_path: String,
-) -> Result<PhotosComparison, String> {
-    let index = fusion::read_photos_index(Path::new(&library_path))?;
-    let data = state.0.lock().unwrap();
-
-    let mut already_in_photos = Vec::new();
-    let mut missing_from_photos = Vec::new();
-    for record in &data.records {
-        let path = Path::new(&record.photo.path);
-        let source_taken = fusion::read_naive_taken(path);
-        let found = fusion::already_in_photos(
-            &record.photo.name,
-            Some(record.photo.size),
-            source_taken,
-            &index,
-            PHOTOS_MATCH_DATE_TOLERANCE_SECS,
-        );
-        match found {
-            Some(_) => already_in_photos.push(record.photo.path.clone()),
-            None => missing_from_photos.push(record.photo.path.clone()),
-        }
+fn share_to_app(app_path: String, paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
     }
-
-    Ok(PhotosComparison {
-        already_in_photos,
-        missing_from_photos,
-    })
+    // `open -a` is the only way to target a `.app`: a bundle is a directory, not an
+    // executable, so it cannot be spawned. `open` returns as soon as the app has been
+    // handed the files, so waiting here does not block on the editor's own startup.
+    let status = std::process::Command::new("open")
+        .arg("-a")
+        .arg(&app_path)
+        .args(&paths)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err("open_failed".into());
+    }
+    Ok(())
 }
 
-/// "Retour de vacances" workflow, step 3a: imports exactly the paths the caller has
-/// already decided to import (typically `compare_with_photos`'s `missing_from_photos`,
-/// after the user reviews and confirms) into Apple Photos. Step 3b, clearing the
-/// source of what's already safe, is not a new command — it is the existing
-/// `trash_photos`, unchanged, given `already_in_photos`'s paths once confirmed.
+/// Windows and Linux have no `open -a` equivalent aimed at one chosen application, but
+/// there the picked file IS the executable, so the paths go straight on its command
+/// line. Spawned without waiting, unlike macOS: here the child process is the editor
+/// itself, and waiting on it would hang until the user quits it.
+#[cfg(not(target_os = "macos"))]
 #[tauri::command]
-fn import_to_photos(licence: State<LicenceState>, paths: Vec<String>) -> Result<Vec<String>, String> {
-    // Same rule as trash_photos: reviewing is free, writing to a library the user
-    // did not create through Skimrr is what a licence buys.
-    if !license::is_active(&licence) {
-        return Err("licence_required".into());
+fn share_to_app(app_path: String, paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
     }
-    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-    fusion::import_paths(&paths)
+    std::process::Command::new(&app_path)
+        .args(&paths)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -2508,6 +2767,22 @@ fn trash_photos(
     // Scanning and reviewing are free; moving files is what a licence buys.
     if !license::is_active(&licence) {
         return Err("licence_required".into());
+    }
+    /* A library photo's `path` points inside the Photos bundle, at the cached
+       derivative the app read it from. Moving that would not delete anything from
+       Photos — it would amputate the library's own cache. The UI already keeps these
+       out of any selection; this refuses them outright, because the cost of a bug
+       getting through is damage to data this app never owned. */
+    {
+        let data = state.0.lock().unwrap();
+        let wanted: HashSet<&String> = paths.iter().collect();
+        if data
+            .records
+            .iter()
+            .any(|r| r.photo.library && wanted.contains(&r.photo.path))
+        {
+            return Err("library_photo".into());
+        }
     }
     // Pair every path with its cached rendition so the trash can still show raw files.
     let with_previews: Vec<(String, Option<String>)> = {
@@ -2559,6 +2834,190 @@ fn undo_trash(app: AppHandle, state: State<ScanState>, batch_id: String) -> Resu
 ///
 /// For camera raw the ceiling is the rendition the file embeds. Reaching real sensor
 /// resolution would mean demosaicing, which Skimrr deliberately does not do.
+/// The library asset's own UUID, read back out of the path of one of its derivatives.
+///
+/// Photos names them `<uuid>_<numbers>_c.jpeg`, so a photo's identity travels with the
+/// only path this app ever holds for it — no UUID has to be carried on every `Photo`.
+/// Validated rather than trusted: the result is fed to PhotoKit and, before that, into
+/// an AppleScript string.
+#[cfg(target_os = "macos")]
+fn library_uuid(path: &Path) -> Option<String> {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|n| n.split('_').next())
+        .filter(|u| u.len() == 36 && u.chars().all(|c| c.is_ascii_hexdigit() || c == '-'))
+        .map(str::to_owned)
+}
+
+/// Removes assets from the Photos library itself, which is the only way a duplicate
+/// that lives there can actually be resolved.
+///
+/// Not Skimrr's own trash, and the difference matters: this app does not move the file,
+/// it asks Photos to delete it. The asset lands in Photos' "Recently Deleted" and stays
+/// recoverable for thirty days — verified on a disposable photo imported for the
+/// purpose, whose row came back with `ZTRASHEDSTATE = 1` rather than disappearing. But
+/// the undo lives in Photos, not here, and `undo_trash` will never bring it back.
+///
+/// Everything this needs was verified against the real system rather than assumed: the
+/// library's own UUID is accepted unchanged as a PhotoKit local identifier, and access
+/// is granted once the app declares `NSPhotoLibraryUsageDescription` — without that key
+/// macOS denies instantly instead of asking.
+///
+/// Licence-gated exactly like `trash_photos`: reviewing is free, destroying is not.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn delete_from_photos(
+    state: State<ScanState>,
+    licence: State<LicenceState>,
+    paths: Vec<String>,
+) -> Result<usize, String> {
+    use objc2::runtime::ProtocolObject;
+    use objc2_foundation::{NSArray, NSString};
+    use objc2_photos::{PHAsset, PHAssetChangeRequest, PHPhotoLibrary};
+
+    if !license::is_active(&licence) {
+        return Err("licence_required".into());
+    }
+
+    // Only paths the scan actually holds as library assets: a caller must not be able
+    // to name an arbitrary UUID and have it deleted.
+    let uuids: Vec<String> = {
+        let data = state.0.lock().unwrap();
+        let wanted: HashSet<&String> = paths.iter().collect();
+        data.records
+            .iter()
+            .filter(|r| r.photo.library && wanted.contains(&r.photo.path))
+            .filter_map(|r| library_uuid(Path::new(&r.photo.path)))
+            .collect()
+    };
+    if uuids.is_empty() {
+        return Ok(0);
+    }
+
+    let strings: Vec<objc2::rc::Retained<NSString>> =
+        uuids.iter().map(|u| NSString::from_str(u)).collect();
+    let refs: Vec<&NSString> = strings.iter().map(|s| &**s).collect();
+    let identifiers = NSArray::from_slice(&refs);
+
+    let assets = unsafe { PHAsset::fetchAssetsWithLocalIdentifiers_options(&identifiers, None) };
+    let found = unsafe { assets.count() };
+    if found == 0 {
+        return Err("no_such_assets".into());
+    }
+
+    let library = unsafe { PHPhotoLibrary::sharedPhotoLibrary() };
+    let block = block2::RcBlock::new(move || {
+        let enumerable = ProtocolObject::from_ref(&*assets);
+        unsafe { PHAssetChangeRequest::deleteAssets(enumerable) };
+    });
+    // `dispatch_block_t` is a raw pointer on this side of the bridge. The block is kept
+    // alive by `block` for the whole call, and the call is synchronous, so nothing can
+    // outlive it.
+    let change: *mut block2::Block<dyn Fn()> = &*block as *const _ as *mut _;
+    unsafe { library.performChangesAndWait_error(change) }
+        .map_err(|e| e.localizedDescription().to_string())?;
+
+    // Gone from the library means gone from the view; the next merge would drop them
+    // anyway, since `read_photos_index` already skips trashed assets.
+    let mut data = state.0.lock().unwrap();
+    let removed: HashSet<&String> = paths.iter().collect();
+    data.records
+        .retain(|r| !(r.photo.library && removed.contains(&r.photo.path)));
+
+    Ok(found)
+}
+
+/// Asks Photos for the actual original behind a library asset, and returns a path to it.
+///
+/// With iCloud storage optimised, the only copy on this Mac is a derivative — measured
+/// at 480x360 for a frame the database reports as 4624x3468. Everything the app states
+/// about such a photo describes the original, so showing the stand-in full-screen makes
+/// the better copy look like the worse one, which is exactly backwards when the two are
+/// side by side in a duplicate group.
+///
+/// Verified against the real scripting dictionary, not assumed: Photos exposes
+/// `export <media items> to <folder> [with using originals]`, and `media item id`
+/// accepts the library's own asset UUID unchanged. Measured on an 11 MB frame held only
+/// in iCloud: 2.6 s, and the bytes exported match what the database reported exactly.
+///
+/// On demand only, never during a scan: it downloads from iCloud, it needs permission
+/// to control Photos, and it takes seconds. Exported once, then reused from the cache.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn library_original(app: AppHandle, path: String, thumb: bool) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let derivative = PathBuf::from(&path);
+        // Derivatives are named `<uuid>_<numbers>_c.jpeg`, so the asset's identity is
+        // already in the path — no need to carry a UUID around on every Photo.
+        let uuid = derivative
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.split('_').next())
+            .filter(|u| {
+                u.len() == 36 && u.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+            })
+            .ok_or("not a library derivative")?
+            .to_string();
+
+        let dir = app
+            .path()
+            .app_cache_dir()
+            .map_err(|e| e.to_string())?
+            .join("originals")
+            .join(&uuid);
+        // Photos names the export after the asset's own original filename, which this
+        // side does not know in advance — so the per-UUID folder is read back rather
+        // than a filename being predicted.
+        let first_file = |dir: &Path| -> Option<String> {
+            std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
+                let p = e.path();
+                p.is_file().then(|| p.to_string_lossy().into_owned())
+            })
+        };
+        /* A grid cell wants a grid-sized picture. Pointing an `<img>` at the eleven
+           megabytes of an original would have the webview decode a sixteen megapixel
+           frame into a thumbnail slot, once per card on screen — so the reduced
+           rendition is built from the original and cached beside it. */
+        let reduced = dir.join("thumb.jpg");
+        let wanted = |dir: &Path| -> Option<String> {
+            if thumb {
+                return reduced.exists().then(|| reduced.to_string_lossy().into_owned());
+            }
+            first_file(dir).filter(|p| Path::new(p) != reduced)
+        };
+        if let Some(existing) = wanted(&dir) {
+            return Ok(existing);
+        }
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+        let script = format!(
+            "tell application \"Photos\"\n    export {{media item id \"{uuid}\"}} to POSIX file \"{}\" with using originals\nend tell",
+            dir.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"")
+        );
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            let _ = std::fs::remove_dir(&dir);
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+        let original = first_file(&dir)
+            .filter(|p| Path::new(p) != reduced)
+            .ok_or_else(|| "Photos exported nothing".to_string())?;
+        if !thumb {
+            return Ok(original);
+        }
+        let decoded = image::open(&original).map_err(|e| e.to_string())?;
+        let bytes = encode_thumb(&decoded).ok_or("could not build a thumbnail")?;
+        std::fs::write(&reduced, bytes).map_err(|e| e.to_string())?;
+        Ok(reduced.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn detail_preview(app: AppHandle, path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -2644,13 +3103,17 @@ pub fn run() {
             photos_days,
             photos_day_detail,
             default_photos_library_path,
-            compare_with_photos,
-            import_to_photos,
+            include_photos_in_scan,
+            share_to_app,
             trash_photos,
+            #[cfg(target_os = "macos")]
+            delete_from_photos,
             undo_trash,
             list_trash,
             empty_trash,
             detail_preview,
+            #[cfg(target_os = "macos")]
+            library_original,
             cache_usage,
             clear_cache,
             app_version,
@@ -2817,14 +3280,15 @@ mod tests {
                 Z_PK INTEGER, ZADDITIONALATTRIBUTES INTEGER,
                 ZUUID TEXT, ZFILENAME TEXT, ZDATECREATED REAL,
                 ZWIDTH INTEGER, ZHEIGHT INTEGER, ZDURATION REAL,
-                ZTRASHEDSTATE INTEGER, ZHIDDEN INTEGER
+                ZTRASHEDSTATE INTEGER, ZHIDDEN INTEGER,
+                ZLATITUDE REAL, ZLONGITUDE REAL
             );
             CREATE TABLE ZADDITIONALASSETATTRIBUTES (
                 Z_PK INTEGER, ZORIGINALFILESIZE INTEGER
             );
             INSERT INTO ZADDITIONALASSETATTRIBUTES VALUES (1, 123456);
             INSERT INTO ZASSET VALUES
-                (1, 1, '{uuid}', 'IMG_0001.HEIC', {mac_seconds}, 100, 200, 0.0, 0, 0);"
+                (1, 1, '{uuid}', 'IMG_0001.HEIC', {mac_seconds}, 100, 200, 0.0, 0, 0, -180.0, -180.0);"
         ))
         .unwrap();
 
@@ -3003,11 +3467,70 @@ mod tests {
                 blur: None,
                 preview: path.into(),
                 thumb: None,
+                library: false,
+                preview_dims: None,
+                lat: None,
+                lon: None,
+                format: "JPG".into(),
+                device: None,
                 kind: None,
             },
             sha: sha.map(String::from),
             phash,
         }
+    }
+
+    /// An asset read out of the Photos library, which the scan can compare against but
+    /// never move.
+    fn library_record(path: &str, phash: Option<u128>, size: u64) -> Record {
+        let mut r = record(path, None, phash, size);
+        r.photo.library = true;
+        r
+    }
+
+    /// A loose copy on disk and the copy already filed in Photos must resolve one way
+    /// only: keep the filed one. It is not a quality judgement — Photos exposes no way
+    /// to delete a `media item`, so suggesting the library copy as surplus would be
+    /// suggesting something that cannot be carried out.
+    #[test]
+    fn the_library_copy_is_the_one_kept() {
+        let records = vec![
+            record("/cards/IMG_1.jpg", None, Some(0), 5_000_000),
+            library_record("/lib/IMG_1.jpeg", Some(0), 4_000_000),
+        ];
+        let view = compute_view(&records, 8);
+        assert_eq!(view.groups.len(), 1, "the two copies should group");
+        let group = &view.groups[0];
+        assert!(
+            view.photos[group.indices[group.suggested]].library,
+            "the keeper must be the copy in the library"
+        );
+        assert_eq!(group.reason, Some("library"));
+        assert_eq!(
+            view.reclaimable_bytes, 5_000_000,
+            "only the loose copy can actually be reclaimed"
+        );
+    }
+
+    /// Two copies that are both already in Photos are a duplicate like any other. This
+    /// used to be dropped as unresolvable, back when nothing in the library could be
+    /// removed; the surplus copy is now handed to Photos for deletion, so the group is
+    /// shown and its bytes are counted.
+    #[test]
+    fn a_group_wholly_inside_the_library_is_kept() {
+        let records = vec![
+            library_record("/lib/A.jpeg", Some(0), 4_000_000),
+            library_record("/lib/B.jpeg", Some(0), 5_000_000),
+        ];
+        let view = compute_view(&records, 8);
+        assert_eq!(view.groups.len(), 1, "two copies of one photo still group");
+        let group = &view.groups[0];
+        assert_eq!(group.indices.len(), 2);
+        assert_eq!(
+            view.reclaimable_bytes,
+            records[group.indices.iter().find(|&&i| i != group.indices[group.suggested]).copied().unwrap()].photo.size,
+            "the copy not kept is what can be freed"
+        );
     }
 
     /// A raw as the scan builds it: the format tag is what the keeper ranking reads to
@@ -4155,6 +4678,12 @@ mod tests {
                 blur: Some(900.0),
                 preview: path.into(),
                 thumb: None,
+                library: false,
+                preview_dims: None,
+                lat: None,
+                lon: None,
+                format: "JPG".into(),
+                device: None,
                 kind: None,
             },
             sha: Some("abc".into()),
@@ -4248,6 +4777,26 @@ mod heic_tests {
     /// The HEIC path must produce the same perceptual fingerprint and a comparable
     /// sharpness score as the JPEG encoding of the very same picture, otherwise
     /// iPhone photos would never group with their exports.
+    /// EXIF keeps a position as unsigned degrees/minutes/seconds in one tag and the
+    /// hemisphere letter in another, so both halves have to be combined correctly. The
+    /// fixture's coordinates are known exactly, which is what makes an arithmetic slip
+    /// or a dropped sign visible here rather than as a country lighting up wrongly.
+    #[test]
+    fn reads_gps_position_from_exif() {
+        let (lat, lon) =
+            exif_facts(&fixture("geotagged-paris.jpg")).coords.expect("the fixture carries GPS tags");
+        assert!((lat - 48.8566).abs() < 1e-4, "latitude read as {lat}");
+        assert!((lon - 2.3522).abs() < 1e-4, "longitude read as {lon}");
+    }
+
+    /// Most photographs carry no position at all, and that has to read as absence. The
+    /// failure mode worth guarding is returning (0, 0) instead: that is a real point in
+    /// the Gulf of Guinea, and it would draw a visit that never happened.
+    #[test]
+    fn a_photo_without_gps_tags_has_no_position() {
+        assert_eq!(exif_facts(&fixture("portrait.jpg")).coords, None);
+    }
+
     /// A portrait frame is stored landscape with a tag saying "turn me". Skimrr must
     /// report and measure the upright picture, not the sensor's view of it.
     #[test]

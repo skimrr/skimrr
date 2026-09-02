@@ -44,12 +44,21 @@ export function Lightbox({
   }, []);
 
   /* Renditions in the grid are sized for the grid. Zooming wants everything the file
-     can give, so the full-size one is built on demand and swapped in. */
+     can give, so the full-size one is built on demand and swapped in.
+
+     For a library photo that means asking Photos to export the original, which with
+     iCloud storage optimised downloads it first — a few seconds, once per photo, then
+     cached. Without it a 480x360 derivative would stand in for a 16 megapixel frame,
+     and side by side in a duplicate group the better copy looks like the worse one.
+     Deliberately only here, where one photo has been opened on purpose: never during a
+     scan, which would pull an entire library across the network. */
   useEffect(() => {
     let cancelled = false;
     setSrc(convertFileSrc(photo.preview));
     reset();
-    invoke<string>("detail_preview", { path: photo.path })
+    (photo.library
+      ? invoke<string>("library_original", { path: photo.path, thumb: false })
+      : invoke<string>("detail_preview", { path: photo.path }))
       .then((detail) => {
         if (!cancelled && detail) setSrc(convertFileSrc(detail));
       })

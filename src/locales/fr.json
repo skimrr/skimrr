@@ -52,10 +52,12 @@
       "raw": "c'est le fichier raw",
       "pixels": "elle a plus de pixels",
       "sharp": "c'est la plus nette",
-      "recent": "c'est la plus récente"
+      "recent": "c'est la plus récente",
+      "library": "elle est déjà dans Photos"
     },
     "trash_one": "Déplacer {{count}} photo vers la corbeille",
-    "trash_other": "Déplacer {{count}} photos vers la corbeille"
+    "trash_other": "Déplacer {{count}} photos vers la corbeille",
+    "inLibrary": "Dans Photos"
   },
   "blur": {
     "threshold": "Seuil de netteté",
@@ -78,12 +80,15 @@
     "restoreHint_other": "{{count}} photos retirées du lot. Cliquez-les à nouveau pour les remettre.",
     "cancel": "Annuler",
     "confirm_one": "Déplacer {{count}} photo",
-    "confirm_other": "Déplacer {{count}} photos"
+    "confirm_other": "Déplacer {{count}} photos",
+    "photosNote_one": "{{count}} d'entre elles est dans la photothèque Photos : Skimrr demande à Photos de la retirer, et l'annulation se fait dans Photos, pas ici.",
+    "photosNote_other": "{{count}} d'entre elles sont dans la photothèque Photos : Skimrr demande à Photos de les retirer, et l'annulation se fait dans Photos, pas ici."
   },
   "toast": {
     "moved_one": "{{count}} photo déplacée vers la corbeille",
     "moved_other": "{{count}} photos déplacées vers la corbeille",
-    "undo": "Annuler"
+    "undo": "Annuler",
+    "undoInPhotos": "Annuler dans Photos"
   },
   "actions": {
     "back": "Analyser un nouveau projet",
@@ -93,7 +98,7 @@
     "scan": "L'analyse de ce dossier a échoué.",
     "trash": "Certaines photos n'ont pas pu être déplacées.",
     "library": "Ce dossier est une photothèque gérée. Skimrr ne peut pas y travailler sans risquer vos albums et vos retouches. Exportez d'abord les originaux vers un dossier ordinaire, puis analysez celui-ci.",
-    "import": "Certaines photos n'ont pas pu être importées dans Photos."
+    "share": "Ces photos n'ont pas pu être ouvertes avec cette application."
   },
   "theme": {
     "auto": "Thème : auto",
@@ -180,7 +185,17 @@
     "formats": "Par format",
     "years": "Par année",
     "none": "Analysez un dossier pour voir sa composition",
-    "other": "Autres"
+    "other": "Autres",
+    "share_one": "Partager {{count}} photo gardée…",
+    "share_other": "Partager les {{count}} photos gardées…",
+    "sharePick": "Choisir une application",
+    "map": "Où ces photos ont été prises",
+    "mapNone": "Aucune de ces photos n'indique où elle a été prise.",
+    "mapCountries_one": "{{count}} pays",
+    "mapPhotos_one": "{{count}} photo localisée",
+    "mapCountries_other": "{{count}} pays",
+    "mapPhotos_other": "{{count}} photos localisées",
+    "devices": "Par appareil"
   },
   "compare": {
     "photos": "dans ce groupe",
@@ -216,34 +231,6 @@
     "compareHint": "Choisissez deux photos ou plus (le repère en haut à gauche) pour les comparer côte à côte.",
     "compareCount_one": "{{count}} photo sélectionnée",
     "compareCount_other": "{{count}} photos sélectionnées"
-  },
-  "fusion": {
-    "library": "Photothèque",
-    "noLibrary": "Aucune photothèque détectée",
-    "changeLibrary": "Changer",
-    "compare": "Comparer avec Photos",
-    "comparing": "Comparaison en cours…",
-    "unreadable": "Impossible de lire cette photothèque. Vérifiez que Skimrr a l'accès complet au disque dans Réglages Système > Confidentialité et sécurité.",
-    "intro": "Vérifiez ce qui est déjà dans Photos avant d'importer une carte SD ou un dossier de rushs, pour ne rien dupliquer.",
-    "alreadyKpi": "Déjà dans Photos",
-    "missingKpi": "À importer",
-    "reclaimKpi": "Récupérable de la source",
-    "alreadyTitle": "Déjà dans Photos",
-    "missingTitle": "À importer",
-    "alreadyNone": "Rien de cette source n'est encore dans Photos.",
-    "missingNone": "Tout est déjà dans Photos.",
-    "cleanAction_one": "Nettoyer {{count}} photo de la source",
-    "cleanAction_other": "Nettoyer {{count}} photos de la source",
-    "importAction_one": "Importer {{count}} photo",
-    "importAction_other": "Importer {{count}} photos",
-    "importConfirmTitle_one": "Importer cette photo dans Photos ?",
-    "importConfirmTitle_other": "Importer ces {{count}} photos dans Photos ?",
-    "importConfirmBody_one": "Vérifiez-la ci-dessous avant l'import.",
-    "importConfirmBody_other": "Vérifiez-les ci-dessous avant l'import.",
-    "importConfirmAction_one": "Importer {{count}} photo",
-    "importConfirmAction_other": "Importer {{count}} photos",
-    "imported_one": "{{count}} photo importée dans Photos",
-    "imported_other": "{{count}} photos importées dans Photos"
   },
   "settings": {
     "title": "Réglages",

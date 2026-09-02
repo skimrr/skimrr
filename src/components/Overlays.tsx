@@ -35,6 +35,11 @@ export function ConfirmModal({
 
   const kept = photos.filter((p) => !excluded.has(p.path));
   const bytes = kept.reduce((sum, p) => sum + p.size, 0);
+  /* A batch can span two libraries with two different undos, and the difference is not
+     cosmetic: what Skimrr moves comes back from Skimrr's own trash, what Photos deletes
+     comes back only from Photos. Asking to confirm without saying which is which would
+     be asking consent for something left unsaid. */
+  const inPhotos = kept.filter((p) => p.library).length;
 
   function toggle(path: string) {
     setExcluded((prev) => {
@@ -61,6 +66,11 @@ export function ConfirmModal({
             size: formatBytes(bytes, i18n.language),
           })}
         </p>
+        {inPhotos > 0 && (
+          <p className="modal-sub modal-warn">
+            {t("confirm.photosNote", { count: inPhotos })}
+          </p>
+        )}
 
         <div className="review-grid">
           {photos.map((photo) => {
@@ -107,105 +117,6 @@ export function ConfirmModal({
             onClick={() => onConfirm(kept.map((p) => p.path))}
           >
             {t("confirm.confirm", { count: kept.length })}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* Same "nothing happens sight-unseen" review as ConfirmModal, but for the opposite
-   direction: these files are about to be copied INTO Photos, not moved to a trash, so
-   the action reads as constructive (primary, not danger) even though the review
-   pattern — a grid, any item can be pulled back out — is identical. */
-export function ImportConfirmModal({
-  photos,
-  onCancel,
-  onConfirm,
-}: {
-  photos: Photo[];
-  onCancel: () => void;
-  onConfirm: (paths: string[]) => void;
-}) {
-  const { t, i18n } = useTranslation();
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-
-  const kept = photos.filter((p) => !excluded.has(p.path));
-
-  function toggle(path: string) {
-    setExcluded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onCancel} role="presentation">
-      <div
-        className="modal modal-wide"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("fusion.importConfirmTitle", { count: kept.length })}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>{t("fusion.importConfirmTitle", { count: kept.length })}</h2>
-        <p className="modal-sub">{t("fusion.importConfirmBody", { count: kept.length })}</p>
-
-        <div className="review-grid">
-          {photos.map((photo) => {
-            const out = excluded.has(photo.path);
-            return (
-              <button
-                key={photo.path}
-                className={`review-cell${out ? " excluded" : ""}`}
-                onClick={() => toggle(photo.path)}
-                title={photo.path}
-                aria-pressed={!out}
-              >
-                <span className="review-thumb">
-                  <img
-                    src={convertFileSrc(photo.thumb ?? photo.preview)}
-                    alt={photo.name}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span className="review-mark">{out ? "↺" : "✕"}</span>
-                </span>
-                <span className="review-name mono">{photo.name}</span>
-                <span className="review-size mono">
-                  {formatBytes(photo.size, i18n.language)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="modal-hint">
-          {excluded.size > 0
-            ? t("confirm.restoreHint", { count: excluded.size })
-            : t("confirm.excludeHint")}
-        </p>
-
-        <div className="modal-actions">
-          <button className="btn-ghost" onClick={onCancel} autoFocus>
-            {t("confirm.cancel")}
-          </button>
-          <button
-            className="btn-primary"
-            disabled={kept.length === 0}
-            onClick={() => onConfirm(kept.map((p) => p.path))}
-          >
-            {t("fusion.importConfirmAction", { count: kept.length })}
           </button>
         </div>
       </div>
@@ -263,15 +174,22 @@ export function UndoToast({
   onUndo,
 }: {
   count: number;
-  onUndo: () => void;
+  /** Absent when nothing in the batch went to Skimrr's own trash — everything removed
+      was deleted by Photos, whose undo lives in Photos. Offering a button that cannot
+      restore anything would be worse than offering none. */
+  onUndo?: () => void;
 }) {
   const { t } = useTranslation();
   return (
     <div className="toast" role="status">
       <span>{t("toast.moved", { count })}</span>
-      <button className="toast-undo" onClick={onUndo}>
-        {t("toast.undo")}
-      </button>
+      {onUndo ? (
+        <button className="toast-undo" onClick={onUndo}>
+          {t("toast.undo")}
+        </button>
+      ) : (
+        <span className="toast-note">{t("toast.undoInPhotos")}</span>
+      )}
     </div>
   );
 }

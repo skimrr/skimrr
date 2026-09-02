@@ -56,7 +56,9 @@ export function CompareView({
     for (const position of shown) {
       const photo = photos[position];
       if (!photo || details[photo.path]) continue;
-      invoke<string>("detail_preview", { path: photo.path })
+      (photo.library
+      ? invoke<string>("library_original", { path: photo.path, thumb: false })
+      : invoke<string>("detail_preview", { path: photo.path }))
         .then((detail) => {
           if (!cancelled && detail) {
             setDetails((d) => ({ ...d, [photo.path]: detail }));

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { View, formatBytes } from "../types";
+import { WorldMap } from "./WorldMap";
 
 /** Slice of a part-to-whole reading, in the order it is drawn and listed. */
 interface Slice {
@@ -70,12 +71,27 @@ function Bars({ rows }: { rows: { label: string; value: number }[] }) {
   );
 }
 
+/* The share glyph: the same open tray `DropIcon` uses for an incoming drop, with the
+   arrow reversed. The two are opposite motions — files arriving, files leaving — so
+   drawing them from one shape family is what makes the pair legible. */
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 14.5V3.5" />
+      <path d="M8.5 7 12 3.5 15.5 7" />
+      <path d="M4.5 13.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
+}
+
 export function StatsTab({
   view,
   blurThreshold,
+  onShare,
 }: {
   view: View;
   blurThreshold: number;
+  onShare: (paths: string[]) => void;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -95,12 +111,26 @@ export function StatsTab({
     );
     const total = view.photos.length;
 
+    /* The keepers, as paths: exactly what the donut labels "everything else" — not a
+       surplus copy, not under the blur cut. Derived from the negation of the same two
+       predicates used just above, so the share button can never offer a set that
+       disagrees with the chart it sits under. */
+    const keep = view.photos
+      .filter((p, i) => !inGroups.has(i) && !(p.blur !== null && p.blur < blurThreshold))
+      .map((p) => p.path);
+
     const byFormat = new Map<string, number>();
+    const byDevice = new Map<string, number>();
     const byYear = new Map<string, number>();
     for (const photo of view.photos) {
-      const format =
-        photo.kind ?? photo.name.split(".").pop()?.toUpperCase() ?? "?";
+      // The format comes from its own field, never from the display name: a library
+      // photo is named after the camera that took it, and cutting that at the last dot
+      // used to file "iPhone 13" alongside JPG and HEIC.
+      const format = photo.format || "?";
       byFormat.set(format, (byFormat.get(format) ?? 0) + 1);
+      if (photo.device) {
+        byDevice.set(photo.device, (byDevice.get(photo.device) ?? 0) + 1);
+      }
       if (photo.taken) {
         const year = String(new Date(photo.taken * 1000).getFullYear());
         byYear.set(year, (byYear.get(year) ?? 0) + 1);
@@ -109,17 +139,22 @@ export function StatsTab({
 
     /* Past a handful of classes adjacent bars stop being readable, so the tail is
        folded into one row rather than drawn as ever-thinner slivers. */
-    const formats = [...byFormat.entries()].sort((a, b) => b[1] - a[1]);
-    const head = formats.slice(0, 5);
-    const tail = formats.slice(5).reduce((n, [, v]) => n + v, 0);
-    if (tail > 0) head.push([t("stats.other"), tail]);
+    const topFew = (counts: Map<string, number>) => {
+      const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      const head = rows.slice(0, 5);
+      const tail = rows.slice(5).reduce((n, [, v]) => n + v, 0);
+      if (tail > 0) head.push([t("stats.other"), tail]);
+      return head.map(([label, value]) => ({ label, value }));
+    };
 
     return {
       total,
       dupes: inGroups.size,
       blurry,
       rest: Math.max(0, total - inGroups.size - blurry),
-      formats: head.map(([label, value]) => ({ label, value })),
+      keep,
+      formats: topFew(byFormat),
+      devices: topFew(byDevice),
       years: [...byYear.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, value]) => ({ label, value })),
@@ -150,7 +185,23 @@ export function StatsTab({
       </div>
 
       <section className="panel">
-        <h2>{t("stats.make")}</h2>
+        <div className="stats-head">
+          <h2>{t("stats.make")}</h2>
+          {data.keep.length > 0 && (
+            <button
+              type="button"
+              className="btn-ghost btn-share"
+              onClick={() => onShare(data.keep)}
+              /* Icon-only, so the label it replaces has to survive somewhere: `title`
+                 for the pointer, `aria-label` for assistive tech. Both carry the count,
+                 which is the part that makes the action unambiguous. */
+              title={t("stats.share", { count: data.keep.length })}
+              aria-label={t("stats.share", { count: data.keep.length })}
+            >
+              <ShareIcon />
+            </button>
+          )}
+        </div>
         <div className="donut-row">
           <Donut slices={slices} total={Math.max(1, data.total)} />
           {/* Identity never rests on colour alone: every slice is named and counted. */}
@@ -168,11 +219,22 @@ export function StatsTab({
         </div>
       </section>
 
+      <section className="panel">
+        <h2>{t("stats.map")}</h2>
+        <WorldMap photos={view.photos} />
+      </section>
+
       <div className="panel-row">
         <section className="panel">
           <h2>{t("stats.formats")}</h2>
           <Bars rows={data.formats} />
         </section>
+        {data.devices.length > 0 && (
+          <section className="panel">
+            <h2>{t("stats.devices")}</h2>
+            <Bars rows={data.devices} />
+          </section>
+        )}
         {data.years.length > 0 && (
           <section className="panel">
             <h2>{t("stats.years")}</h2>
