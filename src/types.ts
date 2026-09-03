@@ -1,3 +1,15 @@
+/** What the scan concluded about one photograph, and how sure it is.
+    Every score is a confidence in 0..1; an absent field means "not judged", which is
+    not the same as "fine" — a photograph with no face was never asked about eyes. */
+export interface BadShot {
+  blur?: number | null;
+  closed_eyes?: number | null;
+  underexposed?: number | null;
+  overexposed?: number | null;
+  faces?: number | null;
+  faces_closed?: number | null;
+}
+
 export interface Photo {
   path: string;
   name: string;
@@ -13,6 +25,8 @@ export interface Photo {
       absent (an older cache entry, or a Photos-library photo, whose own cached
       derivative is already thumbnail-sized). Never use it for a full-screen view. */
   thumb: string | null;
+  /** What Bad Shot found. Empty on a photo the scan could not judge. */
+  bad_shot: BadShot;
   /** True for a photo read out of the Photos library rather than walked on disk. It
       can never be trashed (Photos exposes no way to delete an asset, and its path
       points inside the library bundle) and carries no sharpness score. */

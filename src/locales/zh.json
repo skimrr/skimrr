@@ -21,8 +21,8 @@
   },
   "tabs": {
     "duplicates": "重复",
-    "blur": "模糊",
-    "addFolders": "文件夹"
+    "addFolders": "文件夹",
+    "badshot": "废片"
   },
   "addFolders": {
     "intro": "当前正在分析的文件夹。添加更多文件夹即可将其纳入同一次扫描——已分析过的照片不会重新读取。",
@@ -171,7 +171,6 @@
     "years": "按年份",
     "none": "扫描文件夹后可查看构成",
     "other": "其他",
-    "share_other": "将保留的 {{count}} 张照片发送到…",
     "sharePick": "选择应用程序",
     "map": "拍摄地点",
     "mapNone": "这些照片都没有记录拍摄地点。",
@@ -204,6 +203,7 @@
     "sortDesc": "从新到旧",
     "includePhotos": "为这些日期加入“照片”",
     "includingPhotos": "检查中…",
+    "mergingPhotos": "合并中…",
     "photosUnreadable": "无法读取“照片”。请在系统设置 > 隐私与安全性中确认 Skimrr 已获得完全磁盘访问权限。",
     "alsoInPhotos_other": "另有 {{count}} 张已在“照片”中",
     "onlyInPhotos_other": "{{count}} 张已在“照片”中",
@@ -243,6 +243,93 @@
     },
     "about": {
       "title": "关于"
+    }
+  },
+  "badshot": {
+    "tab": "废片",
+    "all": "全部",
+    "blur": "模糊",
+    "closedEyes": "闭眼",
+    "underexposed": "欠曝",
+    "overexposed": "过曝",
+    "none": "这里没有看起来失败的照片。",
+    "confidence": "置信度",
+    "high": "高",
+    "medium": "中",
+    "faces_other": "{{count}} 张面孔受影响"
+  },
+  "project": {
+    "close": "关闭",
+    "cancel": "取消",
+    "password": "密码",
+    "mode": {
+      "project": {
+        "name": "仅结果",
+        "note": "路径、日期与判定。只有几 KB。"
+      },
+      "thumbnails": {
+        "name": "含预览图",
+        "note": "加入缩略图，这样在没有任何照片的电脑上也能查看项目。"
+      },
+      "originals": {
+        "name": "含照片",
+        "note": "加入文件本身。与你扫描的内容一样大。"
+      }
+    },
+    "send": {
+      "link": "发送",
+      "hint": "把这些照片或这个项目送到别处",
+      "title": "发送",
+      "body": "有两种方式让内容离开 Skimrr。",
+      "editor": {
+        "name": "发送到编辑器",
+        "note_other": "在 Lightroom、Capture One、Affinity 等中打开保留的 {{count}} 张照片。"
+      },
+      "file": {
+        "name": "保存为 .skimrr 文件",
+        "note": "完整项目：找到了什么、该留下什么，需要的话还有照片本身。"
+      }
+    },
+    "export": {
+      "link": "导出",
+      "hint": "将此项目保存为 .skimrr 文件",
+      "title": "导出此项目",
+      "body": ".skimrr 文件保存了 Skimrr 的发现：哪些是重复照片、哪些拍坏了、该留下哪一张。它可以在任何电脑上打开，也从不会被发送到任何地方。",
+      "estimate": "{{count}} 张 · 约 {{size}}",
+      "skippedLibrary_other": "「照片」图库中的 {{count}} 张未被包含：没有另一台电脑能找到的文件。",
+      "encrypt": "用密码保护",
+      "passwordHint": "没有任何办法找回它。没有密码，这个文件根本打不开。",
+      "passwordAgain": "再次输入密码",
+      "mismatch": "两次输入的密码不一致。",
+      "go": "导出…",
+      "working": "正在写入…",
+      "failed": "无法写入文件。",
+      "doneTitle": "已导出",
+      "doneBody": "{{count}} 张照片，{{size}}。",
+      "doneEncrypted": "文件已加密，只能用你所选的密码打开。"
+    },
+    "open": {
+      "fromHome": "打开 .skimrr 项目",
+      "title": "打开项目",
+      "notAProject": "这不是 Skimrr 的项目文件。",
+      "findingsOnly": "仅结果 — 照片不在这个文件里。",
+      "withThumbnails": "结果与小预览图。",
+      "withOriginals": "照片本身就在这个文件里。",
+      "passwordHint": "密码从不会离开这台电脑。",
+      "wrongPassword": "密码错误，或文件已被改动。两者无法区分。",
+      "failed": "无法打开此项目。",
+      "whereAre": "照片在哪里？",
+      "whereAreHint": "可选。Skimrr 依照内容识别，因此被改名或移动过的文件仍能找到。",
+      "whereTo": "照片写到哪里？",
+      "whereToHint": "已经存在的文件永远不会被覆盖。",
+      "chooseFolder": "选择文件夹…",
+      "go": "打开",
+      "working": "正在打开…",
+      "doneBody": "“{{name}}” — {{count}} 张照片。",
+      "restored_other": "已将 {{count}} 张照片写入磁盘。",
+      "keptExisting_other": "{{count}} 个文件已经存在，未做改动。",
+      "relocated_other": "{{count}} 张照片以另一个名字被找到。",
+      "missing_other": "{{count}} 张照片不在这台电脑上。结果照常显示，但没有可操作的文件。"
     }
   }
 }

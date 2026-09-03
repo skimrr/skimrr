@@ -22,8 +22,8 @@
   },
   "tabs": {
     "duplicates": "Duplicates",
-    "blur": "Blurry",
-    "addFolders": "Folders"
+    "addFolders": "Folders",
+    "badshot": "Bad Shot"
   },
   "addFolders": {
     "intro": "Folders currently being scanned. Add more to include them in the same scan — photos already analysed are not re-read.",
@@ -186,8 +186,6 @@
     "years": "By year",
     "none": "Scan a folder to see its breakdown",
     "other": "Other",
-    "share_one": "Share {{count}} kept photo…",
-    "share_other": "Share {{count}} kept photos…",
     "sharePick": "Choose an application",
     "map": "Where these were taken",
     "mapNone": "None of these photos records where it was taken.",
@@ -222,6 +220,7 @@
     "sortDesc": "Newest first",
     "includePhotos": "Include Photos for these dates",
     "includingPhotos": "Checking…",
+    "mergingPhotos": "Merging…",
     "photosUnreadable": "Could not read Photos. Check that Skimrr has Full Disk Access in System Settings > Privacy & Security.",
     "alsoInPhotos_one": "+{{count}} already in Photos",
     "alsoInPhotos_other": "+{{count}} already in Photos",
@@ -265,6 +264,100 @@
     },
     "about": {
       "title": "About"
+    }
+  },
+  "badshot": {
+    "tab": "Bad Shot",
+    "all": "All",
+    "blur": "Blur",
+    "closedEyes": "Closed eyes",
+    "underexposed": "Underexposed",
+    "overexposed": "Overexposed",
+    "none": "Nothing here looks like a bad shot.",
+    "confidence": "confidence",
+    "high": "High",
+    "medium": "Medium",
+    "faces_one": "{{count}} face affected",
+    "faces_other": "{{count}} faces affected"
+  },
+  "project": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "password": "Password",
+    "mode": {
+      "project": {
+        "name": "Findings only",
+        "note": "Paths, dates and verdicts. A few kilobytes."
+      },
+      "thumbnails": {
+        "name": "With previews",
+        "note": "Adds the small renditions, so the project can be looked at on a computer that has none of the photographs."
+      },
+      "originals": {
+        "name": "With the photographs",
+        "note": "Adds the files themselves. As large as what you scanned."
+      }
+    },
+    "send": {
+      "link": "Send",
+      "hint": "Send these photos or this project elsewhere",
+      "title": "Send",
+      "body": "Two ways for something to leave Skimrr.",
+      "editor": {
+        "name": "To an editor",
+        "note_one": "Opens the 1 photo you are keeping in Lightroom, Capture One, Affinity…",
+        "note_other": "Opens the {{count}} photos you are keeping in Lightroom, Capture One, Affinity…"
+      },
+      "file": {
+        "name": "To a .skimrr file",
+        "note": "The project: what was found, what to keep, and the photographs themselves if you want them."
+      }
+    },
+    "export": {
+      "link": "Export",
+      "hint": "Save this project as a .skimrr file",
+      "title": "Export this project",
+      "body": "A .skimrr file holds what Skimrr found: which photographs are duplicates, which are bad shots, what to keep. It opens on any computer, and nothing is ever sent anywhere.",
+      "estimate": "{{count}} photos · about {{size}}",
+      "skippedLibrary_one": "1 photo from the Photos library is left out: it has no file another computer could find.",
+      "skippedLibrary_other": "{{count}} photos from the Photos library are left out: they have no file another computer could find.",
+      "encrypt": "Protect with a password",
+      "passwordHint": "Nothing can recover it — not us, not you. Without the password the file cannot be opened at all.",
+      "passwordAgain": "Password again",
+      "mismatch": "The two passwords are not the same.",
+      "go": "Export…",
+      "working": "Writing…",
+      "failed": "The file could not be written.",
+      "doneTitle": "Exported",
+      "doneBody": "{{count}} photos, {{size}}.",
+      "doneEncrypted": "The file is encrypted. It opens only with the password you chose."
+    },
+    "open": {
+      "fromHome": "Open a .skimrr project",
+      "title": "Open a project",
+      "notAProject": "This is not a Skimrr project file.",
+      "findingsOnly": "Findings only — the photographs are not in this file.",
+      "withThumbnails": "Findings and small previews.",
+      "withOriginals": "The photographs themselves are in this file.",
+      "passwordHint": "The password never leaves this computer.",
+      "wrongPassword": "Wrong password, or the file has been altered. There is no way to tell which.",
+      "failed": "This project could not be opened.",
+      "whereAre": "Where are the photographs?",
+      "whereAreHint": "Optional. Skimrr recognises them by their contents, so files that were renamed or moved are still found.",
+      "whereTo": "Where should the photographs be written?",
+      "whereToHint": "A file already sitting there is never overwritten.",
+      "chooseFolder": "Choose a folder…",
+      "go": "Open",
+      "working": "Opening…",
+      "doneBody": "“{{name}}” — {{count}} photos.",
+      "restored_one": "1 photograph written to disk.",
+      "restored_other": "{{count}} photographs written to disk.",
+      "keptExisting_one": "1 file was already there and was left untouched.",
+      "keptExisting_other": "{{count}} files were already there and were left untouched.",
+      "relocated_one": "1 photograph was found under a different name.",
+      "relocated_other": "{{count}} photographs were found under different names.",
+      "missing_one": "1 photograph is not on this computer. Its findings are shown; there is no file to act on.",
+      "missing_other": "{{count}} photographs are not on this computer. Their findings are shown; there are no files to act on."
     }
   }
 }

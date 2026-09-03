@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { BadShotPanel } from "./BadShotTab";
 import { useTranslation } from "react-i18next";
 import { Photo, formatBytes, formatDate } from "../types";
 
@@ -138,6 +139,13 @@ export function Lightbox({
       aria-modal="true"
       aria-label={photo.name}
     >
+      {/* Why this photograph was flagged, beside it rather than in a tooltip: the
+          decision being made here is whether to delete it, and the reason belongs in
+          the same glance as the picture. */}
+      <div className="lightbox-findings">
+        <BadShotPanel bad={photo.bad_shot} />
+      </div>
+
       <div className="lightbox-bar">
         <span className="lightbox-name mono">{photo.name}</span>
         {many && (

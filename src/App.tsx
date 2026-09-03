@@ -7,8 +7,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
 import { Licence, Photo, Theme, TrashBatch, TrashResult, View, formatBytes } from "./types";
 import { DuplicatesTab } from "./components/DuplicatesTab";
-import { BlurTab } from "./components/BlurTab";
-import { StatsTab } from "./components/StatsTab";
+import { BadShotTab, isBadShot } from "./components/BadShotTab";
+import { StatsTab, keptPaths } from "./components/StatsTab";
 import { DaysTab, Day } from "./components/DaysTab";
 import { TrashScreen } from "./components/TrashScreen";
 import { ConfirmModal, DayGridModal, EmptyTrashModal, UndoToast } from "./components/Overlays";
@@ -17,6 +17,12 @@ import { CompareView } from "./components/CompareView";
 import { Guide } from "./components/Guide";
 import { Settings } from "./components/Settings";
 import { Activation } from "./components/Activation";
+import {
+  ExportModal,
+  OpenProjectModal,
+  SendModal,
+  chooseProjectFile,
+} from "./components/ProjectFile";
 
 type Screen = "home" | "scanning" | "results" | "trash";
 
@@ -47,25 +53,15 @@ const DEFAULT_SIM_THRESHOLD = 28;
    median, because the score has no absolute meaning: it measures how much fine detail
    a frame carries, and a folder of night streets sits an order of magnitude above a
    folder of misty landscapes.
-   The ceiling matters as much as the default. On a real trip folder the scores ran
-   from 0.73 to 4.69 while the slider stepped by whole numbers, so one notch went from
-   flagging nothing to flagging 135 photographs out of 138. A tool that offers to bin
-   most of a library has stopped being useful, so the slider cannot reach past the
-   least sharp third. */
-function blurRangeFor(scores: number[]): {
-  threshold: number;
-  max: number;
-  median: number;
-} {
-  if (scores.length === 0) return { threshold: 0, max: 1, median: 0 };
+   Bad Shot replaced the slider this once fed with its own filters, and the Rust side
+   now draws the same percentile for its verdicts; what survives here is the threshold
+   the Overview still reads to split blurry from the rest of its donut. */
+function blurRangeFor(scores: number[]): { threshold: number } {
+  if (scores.length === 0) return { threshold: 0 };
   const sorted = [...scores].sort((a, b) => a - b);
   const at = (f: number) => sorted[Math.floor((sorted.length - 1) * f)];
-  return {
-    // Opens on the least sharp twentieth: enough to be worth a look, never a purge.
-    threshold: at(0.05),
-    max: Math.max(at(0.33), at(0.05) * 1.2, 0.001),
-    median: at(0.5),
-  };
+  // Opens on the least sharp twentieth: enough to be worth a look, never a purge.
+  return { threshold: at(0.05) };
 }
 
 /** Mirrors the Rust side's own `day_key`: local calendar date, zero-padded, so a
@@ -151,11 +147,9 @@ export default function App() {
   const [progress, setProgress] = useState({ done: 0, total: 0, phase: 1 });
   const [view, setView] = useState<View | null>(null);
   const [kept, setKept] = useState<number[]>([]);
-  const [tab, setTab] = useState<"days" | "duplicates" | "blur" | "addFolders" | "stats">("days");
+  const [tab, setTab] = useState<"days" | "duplicates" | "badshot" | "addFolders" | "stats">("days");
   const [simThreshold, setSimThreshold] = useState(DEFAULT_SIM_THRESHOLD);
   const [blurThreshold, setBlurThreshold] = useState(0);
-  const [blurMax, setBlurMax] = useState(100);
-  const [blurMedian, setBlurMedian] = useState(0);
   const [blurSelected, setBlurSelected] = useState<Set<number>>(new Set());
   const [pendingTrash, setPendingTrash] = useState<Photo[] | null>(null);
   const [batches, setBatches] = useState<TrashBatch[]>([]);
@@ -202,6 +196,10 @@ export default function App() {
       from this trip" wants the whole library's history pulled in unasked. */
   const [photosDays, setPhotosDays] = useState<Day[]>([]);
   const [photosDaysLoading, setPhotosDaysLoading] = useState(false);
+  /* Which half of "include Photos" is running. Reading the library is usually quick;
+     merging the assets into the scan and re-clustering them is not, and the two are
+     worth telling apart while the user waits. */
+  const [photosPhase, setPhotosPhase] = useState<"reading" | "merging" | null>(null);
   /** Distinct from `photosDays.length > 0`: a real check that found nothing must not
       look the same as "never checked". */
   const [photosDaysChecked, setPhotosDaysChecked] = useState(false);
@@ -234,6 +232,15 @@ export default function App() {
   const [shareApp, setShareApp] = useState<string | null>(() =>
     localStorage.getItem("skimrr-share-app"),
   );
+  /** Open while the export dialog is up. */
+  const [exporting, setExporting] = useState(false);
+  /** Open while the "what leaves Skimrr" dialog is up. */
+  const [sending, setSending] = useState(false);
+  /* The `.skimrr` waiting to be opened — chosen from the picker, or handed over by the
+     operating system when one was double-clicked. Held rather than opened straight
+     away: an encrypted project needs a password, and any project replaces what is on
+     screen, so neither should happen without being asked. */
+  const [openingProject, setOpeningProject] = useState<string | null>(null);
 
   const shareTo = useCallback(
     async (paths: string[]) => {
@@ -327,24 +334,58 @@ export default function App() {
     };
   }, []);
 
-  const refresh = useCallback(async (threshold: number, only?: Set<string>) => {
-    const picked = only ?? pickedDays;
-    const next = await invoke<View>("regroup", {
-      threshold,
-      days: picked.size > 0 ? [...picked] : null,
-    });
-    setView(next);
-    setKept(next.groups.map((g) => g.suggested));
-    setBlurSelected(new Set());
-    setViewer(null);
-    return next;
-  }, []);
+  /* `refresh` must keep a stable identity — the slider effect lists it as a dependency,
+     and a new function on every render would re-fire the effect. But a callback with no
+     dependencies also freezes whatever state it closes over, which is how the day
+     narrowing used to be lost: seven of the ten call sites pass no `only`, so they were
+     all reading the empty Set from the first render. Selecting days and then moving the
+     slider re-clustered the whole library while the "narrowed to N days" chip stayed on
+     screen. A ref keeps the identity stable and the reading current. */
+  const pickedDaysRef = useRef(pickedDays);
+  useEffect(() => {
+    pickedDaysRef.current = pickedDays;
+  }, [pickedDays]);
+  const viewRef = useRef<View | null>(null);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  const refresh = useCallback(
+    async (threshold: number, only?: Set<string>, keepPhotos = false) => {
+      const picked = only ?? pickedDaysRef.current;
+      const days = picked.size > 0 ? [...picked] : null;
+      /* Moving the similarity slider cannot change a single photograph, so the backend
+         is told not to send them: 21.4 MB of the 21.8 MB payload, on every 200 ms tick,
+         to say nothing new. Only worth asking for when we still hold a set to keep. */
+      const have = viewRef.current?.photos;
+      const wantPhotos = !keepPhotos || !have || have.length === 0;
+
+      let next = await invoke<View>("regroup", { threshold, days, withPhotos: wantPhotos });
+      if (!wantPhotos) {
+        if (have && have.length === next.total_files) {
+          next = { ...next, photos: have };
+        } else {
+          /* The set of photographs moved under us between the two calls, so the indices
+             in `next.groups` no longer point at the ones we kept. Ask again properly
+             rather than render a group pointing at the wrong picture. */
+          next = await invoke<View>("regroup", { threshold, days, withPhotos: true });
+        }
+      }
+      setView(next);
+      setKept(next.groups.map((g) => g.suggested));
+      setBlurSelected(new Set());
+      setViewer(null);
+      return next;
+    },
+    [],
+  );
 
   // Re-cluster (debounced) when the similarity slider moves.
   useEffect(() => {
     if (screen !== "results") return;
     const id = window.setTimeout(() => {
-      refresh(simThreshold).catch(() => setError("scan"));
+      // The one call that can keep the photographs it already has.
+      refresh(simThreshold, undefined, true).catch(() => setError("scan"));
     }, 200);
     return () => window.clearTimeout(id);
   }, [simThreshold, screen, refresh]);
@@ -419,8 +460,6 @@ export default function App() {
         .filter((b): b is number => b !== null);
       const range = blurRangeFor(scores);
       setBlurThreshold(range.threshold);
-      setBlurMax(range.max);
-      setBlurMedian(range.median);
       setTab("days");
       setScreen("results");
     } catch (e) {
@@ -431,6 +470,52 @@ export default function App() {
       else if (!reason.includes("cancelled")) setError("scan");
       setScreen("home");
     }
+  }
+
+  /* A project file the operating system handed over — at launch, or while Skimrr was
+     already running. The backend puts it aside rather than opening it; this is what
+     comes and asks. */
+  useEffect(() => {
+    const take = () =>
+      invoke<string | null>("take_pending_project")
+        .then((path) => path && setOpeningProject(path))
+        .catch(() => undefined);
+    take();
+    const pending = listen("project-opened", take);
+    return () => {
+      pending.then((un) => un()).catch(() => undefined);
+    };
+  }, []);
+
+  /* Everything a finished scan does to get the interface onto the results, reused for a
+     project that arrived as a file: the two produce the same state, and having one path
+     for both is what stops them drifting apart. */
+  const showProject = useCallback(async () => {
+    setPickedDays(new Set());
+    setDays(await invoke<Day[]>("days").catch(() => []));
+    const next = await refresh(simThreshold);
+    const scores = next.photos
+      .map((p) => p.blur)
+      .filter((b): b is number => b !== null);
+    setBlurThreshold(blurRangeFor(scores).threshold);
+    setTab("days");
+    setScreen("results");
+  }, [refresh, simThreshold]);
+
+  /* The dialog reports what came across and what did not; by the time it is dismissed
+     the backend already holds the imported project, and this is what puts it on screen.
+     `lastFolders` is cleared because "scan that folder again" would now be about a
+     folder this project has nothing to do with. */
+  const onImported = useCallback(() => {
+    setOpeningProject(null);
+    setLastFolders(null);
+    localStorage.removeItem("skimrr-last-folders");
+    showProject().catch(() => setError("scan"));
+  }, [showProject]);
+
+  async function openProjectFile() {
+    const picked = await chooseProjectFile();
+    if (picked) setOpeningProject(picked);
   }
 
   useEffect(() => {
@@ -636,14 +721,16 @@ export default function App() {
   async function includePhotosInGallery() {
     if (!libraryPath || days.length === 0) return;
     setPhotosDaysLoading(true);
+    setPhotosPhase("reading");
     setPhotosDaysError(false);
     try {
       const result = await invoke<Day[]>("photos_days", {
         libraryPath,
         onlyDates: days.map((d) => d.key),
       });
+      // The days appear straight away; whether the button is finished is a separate
+      // question, answered below.
       setPhotosDays(result);
-      setPhotosDaysChecked(true);
       /* The same assets, merged into the scan itself so a loose copy on disk and the
          copy already filed in Photos land in one duplicate group. `refresh` then does
          the regrouping and resets the per-group keeper choices, exactly as it does
@@ -652,6 +739,7 @@ export default function App() {
 
          Its own try: failing to analyse should cost the analysis, never the Gallery
          the days it just loaded. */
+      setPhotosPhase("merging");
       try {
         await invoke<number>("include_photos_in_scan", {
           libraryPath,
@@ -661,11 +749,16 @@ export default function App() {
       } catch {
         /* The Gallery still shows the days; nothing was merged. */
       }
+      /* Only now. Marking the work done as soon as the days arrived would unmount the
+         button — and with it the spinner — at the exact moment the slow half begins,
+         leaving the interface silent through the merge and the re-clustering. */
+      setPhotosDaysChecked(true);
     } catch {
       setPhotosDays([]);
       setPhotosDaysError(true);
     } finally {
       setPhotosDaysLoading(false);
+      setPhotosPhase(null);
     }
   }
 
@@ -715,9 +808,9 @@ export default function App() {
   const lang = i18n.language;
   const trashCount = batches.reduce((sum, b) => sum + b.photos.length, 0);
   const trashBytes = batches.reduce((sum, b) => sum + b.bytes, 0);
-  const blurCount = view
-    ? view.photos.filter((p) => p.blur !== null && p.blur < blurThreshold).length
-    : 0;
+  /* The tab's own count is the number of photographs with any finding at all — the
+     same population "All" holds, so the badge and the list can never disagree. */
+  const badShotCount = view ? view.photos.filter((p) => isBadShot(p.bad_shot)).length : 0;
 
   return (
     <div className={`app${dropping ? " dropping" : ""}`}>
@@ -745,6 +838,15 @@ export default function App() {
           >
             {t("trash.link")}
             <span className="count mono">{trashCount}</span>
+          </button>
+        )}
+        {screen === "results" && view && view.photos.length > 0 && (
+          <button
+            className="trash-link"
+            onClick={() => setSending(true)}
+            title={t("project.send.hint")}
+          >
+            {t("project.send.link")}
           </button>
         )}
         {/* Langue, thème et guide vivaient chacun dans la barre. Réunis derrière un
@@ -783,6 +885,9 @@ export default function App() {
                 : t("scan.againMany", { count: lastFolders.length })}
             </button>
           )}
+          <button className="btn-quiet" onClick={openProjectFile}>
+            {t("project.open.fromHome")}
+          </button>
           <p className="privacy">{t("home.privacy")}</p>
           {error === "scan" && <p className="error">{t("error.scan")}</p>}
           {error === "library" && <p className="error">{t("error.library")}</p>}
@@ -884,11 +989,11 @@ export default function App() {
               <span className="count mono">{view.groups.length}</span>
             </button>
             <button
-              className={`tab${tab === "blur" ? " on" : ""}`}
-              onClick={() => setTab("blur")}
+              className={`tab${tab === "badshot" ? " on" : ""}`}
+              onClick={() => setTab("badshot")}
             >
-              {t("tabs.blur")}
-              <span className="count mono">{blurCount}</span>
+              {t("tabs.badshot")}
+              <span className="count mono">{badShotCount}</span>
             </button>
             <button
               className={`tab${tab === "addFolders" ? " on" : ""}`}
@@ -924,6 +1029,7 @@ export default function App() {
               canIncludePhotos={!!libraryPath}
               photosIncluded={photosDaysChecked}
               photosLoading={photosDaysLoading}
+              photosPhase={photosPhase}
               photosError={photosDaysError}
               onIncludePhotos={includePhotosInGallery}
               onOpenDay={openDay}
@@ -934,7 +1040,7 @@ export default function App() {
           )}
 
           {tab === "stats" && (
-            <StatsTab view={view} blurThreshold={blurThreshold} onShare={shareTo} />
+            <StatsTab view={view} blurThreshold={blurThreshold} />
           )}
 
           {tab === "duplicates" && (
@@ -959,13 +1065,9 @@ export default function App() {
             />
           )}
 
-          {tab === "blur" && (
-            <BlurTab
+          {tab === "badshot" && (
+            <BadShotTab
               view={view}
-              threshold={blurThreshold}
-              max={blurMax}
-              median={blurMedian}
-              onThreshold={setBlurThreshold}
               selected={blurSelected}
               onToggle={(i) =>
                 setBlurSelected((s) => {
@@ -1133,6 +1235,38 @@ export default function App() {
           size={formatBytes(trashBytes, lang)}
           onCancel={() => setConfirmEmpty(false)}
           onConfirm={emptyTrash}
+        />
+      )}
+      {sending && view && (
+        <SendModal
+          keptCount={keptPaths(view, blurThreshold).length}
+          onEditor={() => {
+            setSending(false);
+            shareTo(keptPaths(view, blurThreshold)).catch(() => undefined);
+          }}
+          onExport={() => {
+            setSending(false);
+            setExporting(true);
+          }}
+          onClose={() => setSending(false)}
+        />
+      )}
+      {exporting && (
+        <ExportModal
+          threshold={simThreshold}
+          suggestedName={
+            (lastFolders && lastFolders.length === 1
+              ? lastFolders[0].split(/[\\/]/).pop()
+              : null) || "skimrr-project"
+          }
+          onClose={() => setExporting(false)}
+        />
+      )}
+      {openingProject && (
+        <OpenProjectModal
+          path={openingProject}
+          onClose={() => setOpeningProject(null)}
+          onImported={onImported}
         />
       )}
       {toast && (

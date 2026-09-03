@@ -271,7 +271,7 @@ fn hostname() -> Option<String> {
 
 #[tauri::command]
 pub fn licence_status(state: State<LicenceState>) -> LicenceInfo {
-    let stored = state.0.lock().unwrap();
+    let stored = state.0.lock().unwrap_or_else(|e| e.into_inner());
     match stored.as_ref() {
         Some(licence) => match verify(&licence.token) {
             Ok(receipt) => info_from(&receipt),
@@ -311,7 +311,7 @@ pub async fn activate_licence(
                 device_id,
             };
             save_to_keychain(&licence)?;
-            *state.0.lock().unwrap() = Some(licence);
+            *state.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(licence);
             Ok(info_from(&receipt))
         }
         WorkerReply::Refused { code, message } => {
@@ -327,7 +327,7 @@ pub async fn activate_licence(
 
 #[tauri::command]
 pub async fn deactivate_licence(state: State<'_, LicenceState>) -> Result<LicenceInfo, String> {
-    let stored = { state.0.lock().unwrap().clone() };
+    let stored = { state.0.lock().unwrap_or_else(|e| e.into_inner()).clone() };
     if let Some(licence) = stored {
         if let Ok(receipt) = verify(&licence.token) {
             let _ = call_worker(
@@ -341,14 +341,14 @@ pub async fn deactivate_licence(state: State<'_, LicenceState>) -> Result<Licenc
         }
     }
     clear_keychain();
-    *state.0.lock().unwrap() = None;
+    *state.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Ok(LicenceInfo::inactive(None))
 }
 
 /// Background refresh, run once at startup. Silent by design: it never interrupts,
 /// and it only ever gives up the licence on an explicit refusal.
 pub async fn revalidate_if_due(state: &LicenceState) {
-    let stored = { state.0.lock().unwrap().clone() };
+    let stored = { state.0.lock().unwrap_or_else(|e| e.into_inner()).clone() };
     let Some(licence) = stored else { return };
     let Ok(receipt) = verify(&licence.token) else {
         return;
@@ -370,13 +370,13 @@ pub async fn revalidate_if_due(state: &LicenceState) {
             if verify(&token).is_ok() {
                 let refreshed = StoredLicence { token, ..licence };
                 let _ = save_to_keychain(&refreshed);
-                *state.0.lock().unwrap() = Some(refreshed);
+                *state.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(refreshed);
             }
         }
         // Refunded, revoked, chargeback: the only case that takes the licence away.
         WorkerReply::Refused { .. } => {
             clear_keychain();
-            *state.0.lock().unwrap() = None;
+            *state.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
         }
         // Offline, DNS down, Worker asleep: change nothing, try again next launch.
         WorkerReply::Unreachable => {}

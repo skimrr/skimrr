@@ -21,8 +21,8 @@
   },
   "tabs": {
     "duplicates": "重複",
-    "blur": "ピンボケ",
-    "addFolders": "フォルダ"
+    "addFolders": "フォルダ",
+    "badshot": "失敗写真"
   },
   "addFolders": {
     "intro": "現在分析中のフォルダです。追加すると同じスキャンに含まれます。すでに分析済みの写真は読み直されません。",
@@ -171,7 +171,6 @@
     "years": "年別",
     "none": "フォルダを解析すると内訳が表示されます",
     "other": "その他",
-    "share_other": "残した{{count}}枚を他のアプリで開く…",
     "sharePick": "アプリケーションを選択",
     "map": "撮影された場所",
     "mapNone": "撮影場所を記録した写真はありません。",
@@ -204,6 +203,7 @@
     "sortDesc": "新しい順",
     "includePhotos": "この日付の「写真」も含める",
     "includingPhotos": "確認中…",
+    "mergingPhotos": "統合中…",
     "photosUnreadable": "「写真」を読み込めませんでした。システム設定 > プライバシーとセキュリティで Skimrr にフルディスクアクセスが許可されているか確認してください。",
     "alsoInPhotos_other": "「写真」に既に {{count}} 枚あり",
     "onlyInPhotos_other": "「写真」に既に {{count}} 枚",
@@ -243,6 +243,93 @@
     },
     "about": {
       "title": "このアプリについて"
+    }
+  },
+  "badshot": {
+    "tab": "失敗写真",
+    "all": "すべて",
+    "blur": "ブレ",
+    "closedEyes": "目つぶり",
+    "underexposed": "露出不足",
+    "overexposed": "露出過多",
+    "none": "失敗と思われる写真はありません。",
+    "confidence": "確度",
+    "high": "高",
+    "medium": "中",
+    "faces_other": "{{count}}人が該当"
+  },
+  "project": {
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "password": "パスワード",
+    "mode": {
+      "project": {
+        "name": "結果のみ",
+        "note": "パス、日付、判定。数キロバイト。"
+      },
+      "thumbnails": {
+        "name": "プレビュー付き",
+        "note": "サムネイルを含めます。写真が一枚もないパソコンでもプロジェクトを見られます。"
+      },
+      "originals": {
+        "name": "写真付き",
+        "note": "ファイルそのものを含めます。解析した内容と同じ大きさになります。"
+      }
+    },
+    "send": {
+      "link": "送る",
+      "hint": "これらの写真やこのプロジェクトを外に送る",
+      "title": "送る",
+      "body": "Skimrr から何かを出す方法は2つあります。",
+      "editor": {
+        "name": "編集アプリへ",
+        "note_other": "残した{{count}}枚を Lightroom、Capture One、Affinity などで開きます。"
+      },
+      "file": {
+        "name": ".skimrr ファイルへ",
+        "note": "プロジェクト一式：見つかったもの、残すべきもの、必要なら写真そのもの。"
+      }
+    },
+    "export": {
+      "link": "書き出す",
+      "hint": "このプロジェクトを .skimrr ファイルとして保存",
+      "title": "このプロジェクトを書き出す",
+      "body": ".skimrr ファイルには Skimrr が見つけたもの — 重複、失敗写真、残すべきもの — が入ります。どのパソコンでも開け、どこにも送信されません。",
+      "estimate": "{{count}} 枚 · 約 {{size}}",
+      "skippedLibrary_other": "「写真」ライブラリの {{count}} 枚は含まれません。他のパソコンが見つけられるファイルが存在しないためです。",
+      "encrypt": "パスワードで保護する",
+      "passwordHint": "復元する手段はありません。パスワードがなければファイルは一切開けません。",
+      "passwordAgain": "パスワードを再入力",
+      "mismatch": "2つのパスワードが一致しません。",
+      "go": "書き出す…",
+      "working": "書き込み中…",
+      "failed": "ファイルを書き込めませんでした。",
+      "doneTitle": "書き出しました",
+      "doneBody": "{{count}} 枚、{{size}}。",
+      "doneEncrypted": "ファイルは暗号化されています。選んだパスワードでのみ開きます。"
+    },
+    "open": {
+      "fromHome": ".skimrr プロジェクトを開く",
+      "title": "プロジェクトを開く",
+      "notAProject": "これは Skimrr のプロジェクトファイルではありません。",
+      "findingsOnly": "結果のみ — 写真はこのファイルに入っていません。",
+      "withThumbnails": "結果と小さなプレビュー。",
+      "withOriginals": "写真そのものがこのファイルに入っています。",
+      "passwordHint": "パスワードがこのパソコンから出ることはありません。",
+      "wrongPassword": "パスワードが違うか、ファイルが改変されています。どちらかは判別できません。",
+      "failed": "このプロジェクトを開けませんでした。",
+      "whereAre": "写真はどこにありますか？",
+      "whereAreHint": "任意。Skimrr は中身で見分けるため、名前が変わったり移動したファイルでも見つかります。",
+      "whereTo": "写真をどこに書き出しますか？",
+      "whereToHint": "すでにあるファイルが上書きされることはありません。",
+      "chooseFolder": "フォルダを選ぶ…",
+      "go": "開く",
+      "working": "開いています…",
+      "doneBody": "「{{name}}」— {{count}} 枚。",
+      "restored_other": "{{count}} 枚をディスクに書き出しました。",
+      "keptExisting_other": "{{count}} 個のファイルはすでにあったため、そのままにしました。",
+      "relocated_other": "{{count}} 枚が別の名前で見つかりました。",
+      "missing_other": "{{count}} 枚はこのパソコンにありません。結果は表示されますが、操作できるファイルはありません。"
     }
   }
 }

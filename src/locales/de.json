@@ -22,8 +22,8 @@
   },
   "tabs": {
     "duplicates": "Duplikate",
-    "blur": "Unscharf",
-    "addFolders": "Ordner"
+    "addFolders": "Ordner",
+    "badshot": "Misslungen"
   },
   "addFolders": {
     "intro": "Aktuell analysierte Ordner. Füge weitere hinzu, um sie in denselben Scan einzubeziehen — bereits analysierte Fotos werden nicht erneut gelesen.",
@@ -186,8 +186,6 @@
     "years": "Nach Jahr",
     "none": "Scanne einen Ordner, um die Aufteilung zu sehen",
     "other": "Andere",
-    "share_one": "{{count}} behaltenes Foto teilen…",
-    "share_other": "{{count}} behaltene Fotos teilen…",
     "sharePick": "Programm auswählen",
     "map": "Wo diese aufgenommen wurden",
     "mapNone": "Keines dieser Fotos verzeichnet, wo es aufgenommen wurde.",
@@ -222,6 +220,7 @@
     "sortDesc": "Neueste zuerst",
     "includePhotos": "Fotos für diese Tage einbeziehen",
     "includingPhotos": "Wird geprüft…",
+    "mergingPhotos": "Wird zusammengeführt…",
     "photosUnreadable": "Fotos konnte nicht gelesen werden. Prüfe, ob Skimrr in den Systemeinstellungen unter Datenschutz & Sicherheit vollen Festplattenzugriff hat.",
     "alsoInPhotos_one": "+{{count}} schon in Fotos",
     "alsoInPhotos_other": "+{{count}} schon in Fotos",
@@ -265,6 +264,100 @@
     },
     "about": {
       "title": "Über"
+    }
+  },
+  "badshot": {
+    "tab": "Misslungen",
+    "all": "Alle",
+    "blur": "Unschärfe",
+    "closedEyes": "Geschlossene Augen",
+    "underexposed": "Unterbelichtet",
+    "overexposed": "Überbelichtet",
+    "none": "Hier sieht nichts nach einem misslungenen Foto aus.",
+    "confidence": "Sicherheit",
+    "high": "Hoch",
+    "medium": "Mittel",
+    "faces_one": "{{count}} Gesicht betroffen",
+    "faces_other": "{{count}} Gesichter betroffen"
+  },
+  "project": {
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "password": "Passwort",
+    "mode": {
+      "project": {
+        "name": "Nur Ergebnisse",
+        "note": "Pfade, Daten und Bewertungen. Wenige Kilobyte."
+      },
+      "thumbnails": {
+        "name": "Mit Vorschauen",
+        "note": "Fügt die kleinen Vorschauen hinzu, damit das Projekt auch auf einem Rechner ohne die Fotos ansehbar ist."
+      },
+      "originals": {
+        "name": "Mit den Fotos",
+        "note": "Fügt die Dateien selbst hinzu. So groß wie das, was Sie geprüft haben."
+      }
+    },
+    "send": {
+      "link": "Senden",
+      "hint": "Diese Fotos oder dieses Projekt weitergeben",
+      "title": "Senden",
+      "body": "Zwei Wege, auf denen etwas Skimrr verlässt.",
+      "editor": {
+        "name": "An ein Bildprogramm",
+        "note_one": "Öffnet das 1 behaltene Foto in Lightroom, Capture One, Affinity…",
+        "note_other": "Öffnet die {{count}} behaltenen Fotos in Lightroom, Capture One, Affinity…"
+      },
+      "file": {
+        "name": "In eine .skimrr-Datei",
+        "note": "Das Projekt: was gefunden wurde, was zu behalten ist, und auf Wunsch die Fotos selbst."
+      }
+    },
+    "export": {
+      "link": "Exportieren",
+      "hint": "Dieses Projekt als .skimrr-Datei sichern",
+      "title": "Dieses Projekt exportieren",
+      "body": "Eine .skimrr-Datei enthält, was Skimrr gefunden hat: Duplikate, misslungene Aufnahmen, was zu behalten ist. Sie lässt sich auf jedem Rechner öffnen, und nichts wird jemals irgendwohin gesendet.",
+      "estimate": "{{count}} Fotos · etwa {{size}}",
+      "skippedLibrary_one": "1 Foto aus der Fotos-Mediathek bleibt außen vor: es gibt keine Datei, die ein anderer Rechner finden könnte.",
+      "skippedLibrary_other": "{{count}} Fotos aus der Fotos-Mediathek bleiben außen vor: es gibt keine Dateien, die ein anderer Rechner finden könnte.",
+      "encrypt": "Mit einem Passwort schützen",
+      "passwordHint": "Nichts kann es wiederherstellen — weder wir noch Sie. Ohne das Passwort lässt sich die Datei überhaupt nicht öffnen.",
+      "passwordAgain": "Passwort wiederholen",
+      "mismatch": "Die beiden Passwörter stimmen nicht überein.",
+      "go": "Exportieren…",
+      "working": "Wird geschrieben…",
+      "failed": "Die Datei konnte nicht geschrieben werden.",
+      "doneTitle": "Exportiert",
+      "doneBody": "{{count}} Fotos, {{size}}.",
+      "doneEncrypted": "Die Datei ist verschlüsselt. Sie öffnet sich nur mit dem gewählten Passwort."
+    },
+    "open": {
+      "fromHome": "Ein .skimrr-Projekt öffnen",
+      "title": "Projekt öffnen",
+      "notAProject": "Das ist keine Skimrr-Projektdatei.",
+      "findingsOnly": "Nur Ergebnisse — die Fotos sind nicht in dieser Datei.",
+      "withThumbnails": "Ergebnisse und kleine Vorschauen.",
+      "withOriginals": "Die Fotos selbst sind in dieser Datei.",
+      "passwordHint": "Das Passwort verlässt diesen Rechner nie.",
+      "wrongPassword": "Falsches Passwort, oder die Datei wurde verändert. Beides ist nicht zu unterscheiden.",
+      "failed": "Dieses Projekt konnte nicht geöffnet werden.",
+      "whereAre": "Wo sind die Fotos?",
+      "whereAreHint": "Optional. Skimrr erkennt sie an ihrem Inhalt: umbenannte oder verschobene Dateien werden trotzdem gefunden.",
+      "whereTo": "Wohin sollen die Fotos geschrieben werden?",
+      "whereToHint": "Eine bereits vorhandene Datei wird nie überschrieben.",
+      "chooseFolder": "Ordner wählen…",
+      "go": "Öffnen",
+      "working": "Wird geöffnet…",
+      "doneBody": "„{{name}}“ — {{count}} Fotos.",
+      "restored_one": "1 Foto auf die Festplatte geschrieben.",
+      "restored_other": "{{count}} Fotos auf die Festplatte geschrieben.",
+      "keptExisting_one": "1 Datei war bereits vorhanden und blieb unangetastet.",
+      "keptExisting_other": "{{count}} Dateien waren bereits vorhanden und blieben unangetastet.",
+      "relocated_one": "1 Foto wurde unter einem anderen Namen gefunden.",
+      "relocated_other": "{{count}} Fotos wurden unter anderen Namen gefunden.",
+      "missing_one": "1 Foto ist nicht auf diesem Rechner. Die Ergebnisse werden gezeigt; es gibt keine Datei, mit der etwas zu tun wäre.",
+      "missing_other": "{{count}} Fotos sind nicht auf diesem Rechner. Die Ergebnisse werden gezeigt; es gibt keine Dateien, mit denen etwas zu tun wäre."
     }
   }
 }

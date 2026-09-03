@@ -59,6 +59,19 @@ function CheckIcon() {
 /* A generic photo/frame glyph, not any particular app's icon — third-party use of
    Apple's own Photos icon needs a written trademark license (confirmed against
    Apple's own guidelines), which this sidesteps entirely by not being it. */
+/* Two phases, both slow enough to need saying so: reading the Photos library, then
+   merging what came back into the scan and re-clustering it. The second is usually the
+   longer one, and a spinner that sits there for half a minute without a word is the
+   thing a loader is supposed to prevent. */
+function Spinner() {
+  return (
+    <svg className="spinner" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <circle cx="12" cy="12" r="8.5" opacity="0.28" />
+      <path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5" />
+    </svg>
+  );
+}
+
 function PhotosIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -92,6 +105,7 @@ export function DaysTab({
   canIncludePhotos = false,
   photosIncluded = false,
   photosLoading = false,
+  photosPhase = null,
   photosError = false,
   onIncludePhotos,
   onOpenDay,
@@ -104,6 +118,8 @@ export function DaysTab({
   canIncludePhotos?: boolean;
   photosIncluded?: boolean;
   photosLoading?: boolean;
+  /** Which half of the work is running, so the button can say which. */
+  photosPhase?: "reading" | "merging" | null;
   photosError?: boolean;
   onIncludePhotos?: () => void;
   onOpenDay: (key: string) => void;
@@ -144,9 +160,20 @@ export function DaysTab({
           {sortOrder === "asc" ? t("days.sortAsc") : t("days.sortDesc")}
         </button>
         {canIncludePhotos && !photosIncluded && (
-          <button className="btn-ghost btn-photos" onClick={onIncludePhotos} disabled={photosLoading}>
-            <PhotosIcon />
-            {photosLoading ? t("days.includingPhotos") : t("days.includePhotos")}
+          <button
+            className={`btn-ghost btn-photos${photosLoading ? " is-busy" : ""}`}
+            onClick={onIncludePhotos}
+            /* Disabled so it cannot be pressed twice, and `is-busy` so it stays legible
+               while it is — the ordinary disabled styling fades a control out of the
+               way, which is the opposite of what a control that is reporting progress
+               needs to do. */
+            disabled={photosLoading}
+            aria-busy={photosLoading}
+          >
+            {photosLoading ? <Spinner /> : <PhotosIcon />}
+            {photosLoading
+              ? t(photosPhase === "merging" ? "days.mergingPhotos" : "days.includingPhotos")
+              : t("days.includePhotos")}
           </button>
         )}
         {selected.size > 0 && (

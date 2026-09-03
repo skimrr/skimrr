@@ -40,7 +40,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "models/mobilenetv2.onnx"
+      "models/mobilenetv2.onnx",
+      "models/face_detection_yunet_2023mar.onnx"
     ],
     "windows": {
       "nsis": {
@@ -52,6 +53,17 @@
     },
     "macOS": {
       "signingIdentity": "A358CF7E3F953F4D1A3323A06788456444E16937"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "skimrr"
+        ],
+        "name": "Skimrr Project",
+        "description": "Skimrr portable project",
+        "role": "Editor",
+        "mimeType": "application/vnd.skimrr.project+cbor"
+      }
+    ]
   }
 }

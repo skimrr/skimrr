@@ -74,24 +74,29 @@ function Bars({ rows }: { rows: { label: string; value: number }[] }) {
 /* The share glyph: the same open tray `DropIcon` uses for an incoming drop, with the
    arrow reversed. The two are opposite motions — files arriving, files leaving — so
    drawing them from one shape family is what makes the pair legible. */
-function ShareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 14.5V3.5" />
-      <path d="M8.5 7 12 3.5 15.5 7" />
-      <path d="M4.5 13.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" />
-    </svg>
-  );
+/** The photographs a clean-up would leave standing: not a surplus copy of anything, and
+    not under the blur cut. Exported because the send dialog offers exactly this set to
+    an editor, and a second definition of "kept" would eventually disagree with the donut
+    that sits under it. */
+export function keptPaths(view: View, blurThreshold: number): string[] {
+  const inGroups = new Set<number>();
+  for (const group of view.groups) {
+    // The keeper is not surplus: only the rest of a group could go.
+    group.indices.forEach((idx, pos) => {
+      if (pos !== group.suggested) inGroups.add(idx);
+    });
+  }
+  return view.photos
+    .filter((p, i) => !inGroups.has(i) && !(p.blur !== null && p.blur < blurThreshold))
+    .map((p) => p.path);
 }
 
 export function StatsTab({
   view,
   blurThreshold,
-  onShare,
 }: {
   view: View;
   blurThreshold: number;
-  onShare: (paths: string[]) => void;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -111,13 +116,6 @@ export function StatsTab({
     );
     const total = view.photos.length;
 
-    /* The keepers, as paths: exactly what the donut labels "everything else" — not a
-       surplus copy, not under the blur cut. Derived from the negation of the same two
-       predicates used just above, so the share button can never offer a set that
-       disagrees with the chart it sits under. */
-    const keep = view.photos
-      .filter((p, i) => !inGroups.has(i) && !(p.blur !== null && p.blur < blurThreshold))
-      .map((p) => p.path);
 
     const byFormat = new Map<string, number>();
     const byDevice = new Map<string, number>();
@@ -152,7 +150,6 @@ export function StatsTab({
       dupes: inGroups.size,
       blurry,
       rest: Math.max(0, total - inGroups.size - blurry),
-      keep,
       formats: topFew(byFormat),
       devices: topFew(byDevice),
       years: [...byYear.entries()]
@@ -187,20 +184,7 @@ export function StatsTab({
       <section className="panel">
         <div className="stats-head">
           <h2>{t("stats.make")}</h2>
-          {data.keep.length > 0 && (
-            <button
-              type="button"
-              className="btn-ghost btn-share"
-              onClick={() => onShare(data.keep)}
-              /* Icon-only, so the label it replaces has to survive somewhere: `title`
-                 for the pointer, `aria-label` for assistive tech. Both carry the count,
-                 which is the part that makes the action unambiguous. */
-              title={t("stats.share", { count: data.keep.length })}
-              aria-label={t("stats.share", { count: data.keep.length })}
-            >
-              <ShareIcon />
-            </button>
-          )}
+
         </div>
         <div className="donut-row">
           <Donut slices={slices} total={Math.max(1, data.total)} />

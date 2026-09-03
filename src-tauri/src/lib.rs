@@ -16,6 +16,7 @@ use walkdir::WalkDir;
 mod bktree;
 mod fusion;
 mod license;
+mod portable;
 mod video;
 use license::LicenceState;
 
@@ -61,6 +62,13 @@ struct Photo {
     /// entry, or the encode failed); callers fall back to `preview`.
     #[serde(default)]
     thumb: Option<String>,
+    /// What Bad Shot measured, and what it concluded. The measurements are cached with
+    /// the file; the verdict is rebuilt whenever the folder's own thresholds move, so
+    /// the two are kept apart rather than folded into one field.
+    #[serde(default)]
+    measurements: badshot::Measurements,
+    #[serde(default)]
+    bad_shot: badshot::BadShot,
     /// True for an asset read out of the Photos library rather than walked on disk.
     ///
     /// Two consequences, both load-bearing: it is never a candidate for the trash —
@@ -70,6 +78,11 @@ struct Photo {
     /// not comparable with a full-size original's.
     #[serde(default)]
     library: bool,
+    /// True for a photograph an imported project describes but which is not on this
+    /// machine. Its findings are worth showing — that is most of what a project is — but
+    /// there is no file to open, share, or move to the trash.
+    #[serde(default)]
+    missing: bool,
     /// Decimal degrees from the file's own EXIF GPS tags, absent on anything that was
     /// not geotagged — which is most of a scanned folder unless it came off a phone.
     #[serde(default)]
@@ -120,9 +133,25 @@ struct ScanData {
     offline: Vec<PathBuf>,
     records: Vec<Record>,
     trashed: HashMap<String, Vec<Record>>,
+    /// The folders this scan was given, in the order they were given.
+    ///
+    /// Kept because an export has to turn every absolute path into a path relative to
+    /// one of these — that relativity is the whole reason a project can be opened on
+    /// another machine at all.
+    roots: Vec<String>,
 }
 
 struct ScanState(Mutex<ScanData>);
+
+/* Every lock in this file is taken with `unwrap_or_else(|e| e.into_inner())` rather
+   than `unwrap()`.
+   A poisoned mutex means another thread panicked while holding it. Propagating that
+   panic at every later acquisition turns one failure into a permanent one: the next
+   scan panics, and the next regroup, and the next settings read, and the window stays
+   open and dead until the user quits and loses the scan. What these locks protect is a
+   scan result — at worst stale, or half-updated, which scanning again repairs. A
+   recoverable inconsistency is a far better outcome than an application that cannot be
+   used, so the poison is stepped over deliberately rather than by accident. */
 
 #[derive(Serialize, Clone)]
 struct Progress {
@@ -262,6 +291,8 @@ fn hash_file(path: &Path) -> std::io::Result<String> {
 /// 0.079 and 0.082 away while the next photograph sits 0.189, a margin of 2.3x where
 /// the fingerprint managed 0.83. So the fingerprint proposes and the model disposes,
 /// which also keeps inference off every photograph in the library.
+pub mod badshot;
+
 mod refine {
     use super::*;
     use candle_core::{Device, Tensor};
@@ -872,6 +903,10 @@ fn is_heif(path: &Path) -> bool {
 struct Analysis {
     phash: Option<u128>,
     blur: Option<f64>,
+    /// Everything Bad Shot measures that does not depend on the folder: exposure, the
+    /// zone reading, faces and their eyes. The verdict built from these is not cached
+    /// because it moves with the blur threshold; these numbers never do.
+    measurements: badshot::Measurements,
     dims: Option<(u32, u32)>,
     taken: Option<i64>,
     /// A JPEG rendition to cache when the webview cannot display the file itself.
@@ -886,6 +921,7 @@ impl Analysis {
         Analysis {
             phash: None,
             blur: None,
+            measurements: badshot::Measurements::default(),
             dims: None,
             taken: None,
             preview_jpeg: None,
@@ -984,6 +1020,15 @@ fn encode_thumb(img: &image::DynamicImage) -> Option<Vec<u8>> {
 }
 
 fn analyze_file(path: &Path) -> Analysis {
+    analyze_file_with(path, None)
+}
+
+/// The same analysis, with a face detector when the caller has one loaded.
+///
+/// Split rather than threaded through every call site: the detector only exists during
+/// a scan, where the model is read once and shared, and the half-dozen other callers —
+/// a single thumbnail, a test — have no use for it.
+fn analyze_file_with(path: &Path, detector: Option<&candle_onnx::onnx::ModelProto>) -> Analysis {
     if is_raw(path) {
         let Ok(data) = std::fs::read(path) else {
             return Analysis::empty();
@@ -1005,9 +1050,11 @@ fn analyze_file(path: &Path) -> Analysis {
         // how the camera was actually held.
         let img = apply_orientation(img, meta.orientation.unwrap_or(1));
         let gray = img.to_luma8();
+        let rgb = img.to_rgb8();
         return Analysis {
-            phash: fingerprint(&img.to_rgb8()),
+            phash: fingerprint(&rgb),
             blur: Some(sharpness(&gray)),
+            measurements: badshot::measure(&rgb, detector),
             // Vendor tags carry the sensor size only on some brands; when they do
             // not, the preview's size is all we can honestly report.
             dims: meta
@@ -1025,9 +1072,11 @@ fn analyze_file(path: &Path) -> Analysis {
         };
         let img = apply_orientation(img, exif_orientation(path));
         let gray = img.to_luma8();
+        let rgb = img.to_rgb8();
         return Analysis {
-            phash: fingerprint(&img.to_rgb8()),
+            phash: fingerprint(&rgb),
             blur: Some(sharpness(&gray)),
+            measurements: badshot::measure(&rgb, detector),
             dims: Some((img.width(), img.height())),
             taken: None,
             preview_jpeg: encode_preview(&img),
@@ -1042,9 +1091,11 @@ fn analyze_file(path: &Path) -> Analysis {
             // which does need the rotation baked in since it is generated fresh.
             let img = apply_orientation(img, exif_orientation(path));
             let gray = img.to_luma8();
+            let rgb = img.to_rgb8();
             Analysis {
-                phash: fingerprint(&img.to_rgb8()),
+                phash: fingerprint(&rgb),
                 blur: Some(sharpness(&gray)),
+                measurements: badshot::measure(&rgb, detector),
                 dims: Some(gray.dimensions()),
                 taken: None,
                 preview_jpeg: None,
@@ -1083,6 +1134,14 @@ fn analyze_video(ffmpeg_bin: Option<&Path>, path: &Path) -> Analysis {
     Analysis {
         phash,
         blur,
+        // Exposure and zones from the same median frame the rest of the video reading
+        // uses. No detector: a face in one sampled frame of a clip says nothing about
+        // whether the clip is worth keeping, and it would cost a tenth of a second to
+        // find out.
+        measurements: frames
+            .median()
+            .map(|f| badshot::measure(f, None))
+            .unwrap_or_default(),
         dims: Some((frames.width, frames.height)),
         taken: None,
         preview_jpeg,
@@ -1207,9 +1266,12 @@ fn photo_meta(path: &Path, analysis: &Analysis, preview: String) -> Photo {
         // reader cannot open, so the analysis pass hands it over.
         taken: analysis.taken.unwrap_or_else(|| taken_date(path, mtime)),
         blur: analysis.blur,
+        measurements: analysis.measurements.clone(),
+        bad_shot: badshot::BadShot::default(),
         preview,
         thumb: None,
         library: false,
+        missing: false,
         preview_dims: None,
         lat: facts.coords.map(|c| c.0),
         lon: facts.coords.map(|c| c.1),
@@ -1248,7 +1310,7 @@ fn preview_name(path: &Path, tag: &str) -> String {
 
 /// Bump when the analysis itself changes meaning, so old entries are not trusted for
 /// results they were never computed for.
-const SCAN_CACHE_VERSION: u32 = 6;
+const SCAN_CACHE_VERSION: u32 = 7;
 
 #[derive(Serialize, Deserialize)]
 struct CachedFile {
@@ -1416,6 +1478,19 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
     let stopped = || cancel.0.load(Ordering::Relaxed);
     let cache_file = scan_cache_path(&app);
     let cached = load_scan_cache(cache_file.as_ref());
+    /* One read of the 233 KB detector for the whole scan, shared by every worker.
+       Absent it, the analysis still runs and simply reports no faces — which is the
+       right degradation: a missing model must cost the face-aware refinements, never
+       the scan itself. */
+    let detector = app
+        .path()
+        .resolve(
+            "models/face_detection_yunet_2023mar.onnx",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .ok()
+        .filter(|p| p.exists())
+        .and_then(|p| candle_onnx::read_file(p).ok());
 
     // Two selected folders can overlap (one nested inside another, or the very same
     // folder picked twice) — a canonical-path dedupe keeps every file counted once
@@ -1444,7 +1519,7 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
     let _ = app.emit("scan-skipped", offline.len());
     {
         let state = app.state::<ScanState>();
-        state.0.lock().unwrap().offline = offline;
+        state.0.lock().unwrap_or_else(|e| e.into_inner()).offline = offline;
     }
     if stopped() {
         return Err(CANCELLED.into());
@@ -1529,7 +1604,7 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
                         .photo
                         .thumb
                         .as_deref()
-                        .map_or(true, |p| Path::new(p).exists())
+                        .is_none_or(|p| Path::new(p).exists())
                 {
                     let d = done.fetch_add(1, Ordering::Relaxed) + 1;
                     if throttle.should_emit(d, total) {
@@ -1549,7 +1624,7 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
                     return Some(record);
                 }
             }
-            let analysis = analyze_file(&path);
+            let analysis = analyze_file_with(&path, detector.as_ref());
             // Formats the webview cannot render get a cached JPEG rendition; the rest
             // are displayed straight from disk.
             let preview = match (&analysis.preview_jpeg, &cache) {
@@ -1605,9 +1680,10 @@ fn run_scan(app: AppHandle, roots: Vec<String>) -> Result<usize, String> {
     save_to_scan_cache(cache_file.as_ref(), &records);
 
     let state = app.state::<ScanState>();
-    let mut data = state.0.lock().unwrap();
+    let mut data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     data.records = records;
     data.trashed.clear();
+    data.roots = roots.iter().map(|r| r.to_string_lossy().into_owned()).collect();
     Ok(total)
 }
 
@@ -1686,7 +1762,27 @@ fn stem_key(path: &Path) -> Option<(PathBuf, String)> {
     Some((parent, stem))
 }
 
+/// The whole view: clustering *and* every photograph, with its Bad Shot verdict.
+///
+/// What a finished scan, an import, or a change to the day filter needs — anything that
+/// changes which photographs are in play.
 fn compute_view(records: &[Record], threshold: u32) -> View {
+    build_view(records, threshold, true)
+}
+
+/// The clustering alone, leaving `photos` empty.
+///
+/// For the one case that dominates in practice: the similarity slider. Moving it cannot
+/// change a single photograph — the Bad Shot cuts are percentiles of the folder's own
+/// readings and do not depend on the threshold — so the 21 MB of identical photographs
+/// that used to cross the bridge on every 200 ms tick said nothing at all. Measured at
+/// n=50,000: 21.8 MB per regroup, of which 21.4 MB was photographs and 0.4 MB was the
+/// groups that had actually changed.
+fn compute_groups(records: &[Record], threshold: u32) -> View {
+    build_view(records, threshold, false)
+}
+
+fn build_view(records: &[Record], threshold: u32, with_photos: bool) -> View {
     let n = records.len();
     let mut parent: Vec<usize> = (0..n).collect();
 
@@ -1737,8 +1833,21 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
     // realistic clustered ones: at the app's threshold (28 of 128 bits), the pruning
     // window is far wider than the ~5.7-bit standard deviation of Hamming distance
     // between unrelated hashes, so almost nothing gets pruned and the tree just pays
-    // pointer-chasing overhead. The scan itself is already ~550M comparisons/sec here,
-    // so it stays the linear scan unless a real dataset shows it's actually a bottleneck.
+    // pointer-chasing overhead.
+    //
+    // This scan is also deliberately *not* parallel, which is the second thing measured
+    // here rather than assumed. `bench_regroup_phases` at n=50,000 on eight cores:
+    //
+    //     sequential                971 ms
+    //     rayon, once per seed     3073 ms   3.2x slower
+    //     rayon above 20k only     2288 ms
+    //
+    // Entering the pool once per seed loses badly, and not only because of the fifty
+    // thousand fork/joins: the predicate is an XOR and a popcount, and it is almost
+    // always false — 4,999 hits in 1.25 billion tests — so a parallel `collect` spends
+    // its time merging per-thread vectors that are empty. Cheap predicate, rare hit,
+    // sequential wins. Restoring the parallelism would need a real dataset showing
+    // otherwise; the shape of this one says no.
     let phashes: Vec<Option<u128>> = records.iter().map(|r| r.phash).collect();
     let mut taken = vec![false; n];
     for i in 0..n {
@@ -1747,10 +1856,8 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
             continue;
         }
         let members: Vec<usize> = (i + 1..n)
-            .into_par_iter()
             .filter(|&j| {
-                !taken[j]
-                    && phashes[j].map_or(false, |h| (seed ^ h).count_ones() <= threshold)
+                !taken[j] && phashes[j].is_some_and(|h| (seed ^ h).count_ones() <= threshold)
             })
             .collect();
         for j in members {
@@ -1854,8 +1961,48 @@ fn compute_view(records: &[Record], threshold: u32) -> View {
     groups.sort_by_key(|g| std::cmp::Reverse(reclaimable(g)));
     let reclaimable_bytes = groups.iter().map(reclaimable).sum();
 
+    /* Both Bad Shot thresholds are percentiles of this folder's own readings, for the
+       reason the blur cut has always been one: the score measures how much fine detail
+       a frame carries, which has no absolute meaning — a folder of night streets sits
+       an order of magnitude above a folder of misty landscapes.
+       Faces get their own cut rather than sharing the frame's. Measured on real
+       photographs, a face scores 0.4-0.6 where its own frame scores 2-3, because skin
+       carries little of the high-frequency detail this reading counts. One shared
+       threshold marked every portrait blurred. */
+    let percentile = |mut v: Vec<f64>, q: f64| -> f64 {
+        if v.is_empty() {
+            return 0.0;
+        }
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        v[((v.len() - 1) as f64 * q).floor() as usize]
+    };
+
+    // Both cuts exist only to fill in each photograph's verdict, so when the caller is
+    // not asking for the photographs there is nothing to sort and nothing to clone.
+    let photos = if with_photos {
+        let blur_cut = percentile(records.iter().filter_map(|r| r.photo.blur).collect(), 0.05);
+        let face_cut = percentile(
+            records
+                .iter()
+                .filter_map(|r| r.photo.measurements.face_sharpness)
+                .collect(),
+            0.05,
+        );
+        records
+            .iter()
+            .map(|r| {
+                let mut photo = r.photo.clone();
+                photo.bad_shot =
+                    badshot::verdict(photo.blur, blur_cut, face_cut, &photo.measurements);
+                photo
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     View {
-        photos: records.iter().map(|r| r.photo.clone()).collect(),
+        photos,
         groups,
         reclaimable_bytes,
         total_files: n,
@@ -1900,7 +2047,7 @@ struct OfflineSet {
 /// anything is fetched, because 2.7 GB over a tethered connection is the user's call.
 #[tauri::command]
 fn offline_set(state: State<ScanState>) -> OfflineSet {
-    let data = state.0.lock().unwrap();
+    let data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let bytes = data
         .offline
         .iter()
@@ -1944,7 +2091,7 @@ fn request_download(_chunk: &[PathBuf]) {}
 /// and a stalled download is reported instead of hanging forever.
 #[tauri::command]
 async fn download_offline(app: AppHandle, state: State<'_, ScanState>) -> Result<usize, String> {
-    let paths: Vec<PathBuf> = state.0.lock().unwrap().offline.clone();
+    let paths: Vec<PathBuf> = state.0.lock().unwrap_or_else(|e| e.into_inner()).offline.clone();
     if paths.is_empty() {
         return Ok(0);
     }
@@ -2010,29 +2157,39 @@ fn cancel_scan(state: State<Cancel>) {
 }
 
 #[tauri::command]
+/// Re-clusters the scan at a new threshold, optionally narrowed to a few days.
+///
+/// `with_photos` is false when only the similarity slider moved: that cannot change a
+/// single photograph, so the view comes back with `photos` empty and the caller keeps
+/// the ones it already has.
 fn regroup(
     app: AppHandle,
     state: State<ScanState>,
     threshold: u32,
     days: Option<Vec<String>>,
+    with_photos: bool,
 ) -> View {
-    let mut data = state.0.lock().unwrap();
-    let mut view = match days {
-        // Narrowing to a few days is how a trip folder becomes tractable: the clustering
-        // runs over that subset alone, so nothing outside it can be grouped or counted.
-        Some(days) if !days.is_empty() => {
-            let wanted: HashSet<String> = days.into_iter().collect();
-            let subset: Vec<Record> = data
-                .records
-                .iter()
-                .filter(|r| wanted.contains(&day_key(r.photo.taken)))
-                .cloned()
-                .collect();
-            compute_view(&subset, threshold)
-        }
-        _ => compute_view(&data.records, threshold),
+    let mut guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    let data = &mut *guard;
+
+    // Narrowing to a few days is how a trip folder becomes tractable: the clustering
+    // runs over that subset alone, so nothing outside it can be grouped or counted.
+    let subset: Option<Vec<Record>> = days.filter(|d| !d.is_empty()).map(|days| {
+        let wanted: HashSet<String> = days.into_iter().collect();
+        data.records
+            .iter()
+            .filter(|r| wanted.contains(&day_key(r.photo.taken)))
+            .cloned()
+            .collect()
+    });
+    let records: &[Record] = subset.as_deref().unwrap_or(&data.records);
+
+    let mut view = if with_photos {
+        compute_view(records, threshold)
+    } else {
+        compute_groups(records, threshold)
     };
-    refine_groups(&app, &mut data, &mut view);
+    refine_groups(&app, &mut data.embeddings, records, &mut view);
     view
 }
 
@@ -2040,7 +2197,18 @@ fn regroup(
 /// to be different photographs. Only groups reach the model, and only once per file:
 /// the fingerprint has already discarded everything it can, so this is the expensive
 /// opinion asked sparingly.
-fn refine_groups(app: &AppHandle, data: &mut ScanData, view: &mut View) {
+/// Runs the model over the members of each proposed group and drops those that turn out
+/// to be different photographs.
+///
+/// Reads the photographs out of `records` rather than out of `view.photos`, because the
+/// view may deliberately carry none: a regroup that only moved the similarity slider
+/// leaves them out, and indexing an empty array here would turn a saving into a crash.
+fn refine_groups(
+    app: &AppHandle,
+    embeddings: &mut HashMap<String, Vec<f32>>,
+    records: &[Record],
+    view: &mut View,
+) {
     let Some(path) = refine::model_path(app) else {
         return;
     };
@@ -2050,22 +2218,24 @@ fn refine_groups(app: &AppHandle, data: &mut ScanData, view: &mut View) {
 
     for group in view.groups.iter() {
         for &index in &group.indices {
-            let photo = &view.photos[index];
-            if data.embeddings.contains_key(&photo.path) {
+            let Some(photo) = records.get(index).map(|r| &r.photo) else {
+                continue;
+            };
+            if embeddings.contains_key(&photo.path) {
                 continue;
             }
             if let Some(v) = refine::embed(&model, &photo.preview) {
-                data.embeddings.insert(photo.path.clone(), v);
+                embeddings.insert(photo.path.clone(), v);
             }
         }
     }
 
-    let embeddings = &data.embeddings;
+    let embeddings = &*embeddings;
     view.groups.retain_mut(|group| {
         let Some(seed) = group
             .indices
             .get(group.suggested)
-            .and_then(|&i| embeddings.get(&view.photos[i].path))
+            .and_then(|&i| records.get(i).and_then(|r| embeddings.get(&r.photo.path)))
         else {
             // No opinion is not a verdict: leave the group as the fingerprint left it.
             return true;
@@ -2073,8 +2243,9 @@ fn refine_groups(app: &AppHandle, data: &mut ScanData, view: &mut View) {
         let keeper = group.indices[group.suggested];
         group.indices.retain(|&i| {
             i == keeper
-                || embeddings
-                    .get(&view.photos[i].path)
+                || records
+                    .get(i)
+                    .and_then(|r| embeddings.get(&r.photo.path))
                     .map(|v| refine::distance(seed, v) <= refine::MAX_DISTANCE)
                     .unwrap_or(true)
         });
@@ -2092,7 +2263,7 @@ fn refine_groups(app: &AppHandle, data: &mut ScanData, view: &mut View) {
                 .iter()
                 .enumerate()
                 .filter(|(pos, _)| *pos != g.suggested)
-                .map(|(_, &i)| view.photos[i].size)
+                .map(|(_, &i)| records.get(i).map(|r| r.photo.size).unwrap_or(0))
                 .sum::<u64>()
         })
         .sum();
@@ -2121,7 +2292,7 @@ struct Day {
 
 #[tauri::command]
 fn days(state: State<ScanState>) -> Vec<Day> {
-    let data = state.0.lock().unwrap();
+    let data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let mut by_day: HashMap<String, (usize, u64, Vec<String>)> = HashMap::new();
     for record in &data.records {
         let entry = by_day.entry(day_key(record.photo.taken)).or_default();
@@ -2259,11 +2430,14 @@ fn photos_day_detail(library_path: String, date: String) -> Result<Vec<Photo>, S
                 height: a.height,
                 taken,
                 blur: None,
+                measurements: badshot::Measurements::default(),
+                bad_shot: badshot::BadShot::default(),
                 preview,
                 // Photos' own cached derivative is already thumbnail-sized — no
                 // second, smaller rendition to generate here.
                 thumb: None,
                 library: true,
+                missing: false,
                 // Straight from `Photos.sqlite`: the cached derivative this points at
                 // carries no EXIF of its own, but the library's database has the
                 // position for every asset it knows about.
@@ -2649,9 +2823,12 @@ fn include_photos_in_scan(
                     height: asset.height,
                     taken,
                     blur: None,
+                    measurements: badshot::Measurements::default(),
+                    bad_shot: badshot::BadShot::default(),
                     preview,
                     thumb: None,
                     library: true,
+                    missing: false,
                     lat: asset.lat,
                     lon: asset.lon,
                     preview_dims,
@@ -2668,7 +2845,7 @@ fn include_photos_in_scan(
     save_to_scan_cache(cache_file.as_ref(), &records);
 
     let merged = records.len();
-    let mut data = state.0.lock().unwrap();
+    let mut data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     // Idempotent: asking twice must refresh the library's contribution, not double it.
     data.records.retain(|r| !r.photo.library);
     data.records.extend(records);
@@ -2774,7 +2951,7 @@ fn trash_photos(
        out of any selection; this refuses them outright, because the cost of a bug
        getting through is damage to data this app never owned. */
     {
-        let data = state.0.lock().unwrap();
+        let data = state.0.lock().unwrap_or_else(|e| e.into_inner());
         let wanted: HashSet<&String> = paths.iter().collect();
         if data
             .records
@@ -2786,7 +2963,7 @@ fn trash_photos(
     }
     // Pair every path with its cached rendition so the trash can still show raw files.
     let with_previews: Vec<(String, Option<String>)> = {
-        let data = state.0.lock().unwrap();
+        let data = state.0.lock().unwrap_or_else(|e| e.into_inner());
         paths
             .iter()
             .map(|p| {
@@ -2803,7 +2980,7 @@ fn trash_photos(
     let batch_id = trash_to(&trash_root(&app)?, &with_previews)?;
 
     let set: HashSet<&String> = paths.iter().collect();
-    let mut data = state.0.lock().unwrap();
+    let mut data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let records = std::mem::take(&mut data.records);
     let (moved, kept): (Vec<Record>, Vec<Record>) = records
         .into_iter()
@@ -2821,7 +2998,7 @@ fn trash_photos(
 fn undo_trash(app: AppHandle, state: State<ScanState>, batch_id: String) -> Result<usize, String> {
     let count = undo_from(&trash_root(&app)?, &batch_id)?;
 
-    let mut data = state.0.lock().unwrap();
+    let mut data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(records) = data.trashed.remove(&batch_id) {
         data.records.extend(records);
     }
@@ -2882,7 +3059,7 @@ fn delete_from_photos(
     // Only paths the scan actually holds as library assets: a caller must not be able
     // to name an arbitrary UUID and have it deleted.
     let uuids: Vec<String> = {
-        let data = state.0.lock().unwrap();
+        let data = state.0.lock().unwrap_or_else(|e| e.into_inner());
         let wanted: HashSet<&String> = paths.iter().collect();
         data.records
             .iter()
@@ -2919,7 +3096,7 @@ fn delete_from_photos(
 
     // Gone from the library means gone from the view; the next merge would drop them
     // anyway, since `read_photos_index` already skips trashed assets.
-    let mut data = state.0.lock().unwrap();
+    let mut data = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let removed: HashSet<&String> = paths.iter().collect();
     data.records
         .retain(|r| !(r.photo.library && removed.contains(&r.photo.path)));
@@ -3072,7 +3249,7 @@ fn empty_trash(app: AppHandle, state: State<ScanState>) -> Result<usize, String>
     for batch in batches {
         std::fs::remove_dir_all(root.join(&batch.batch_id)).map_err(|e| e.to_string())?;
     }
-    state.0.lock().unwrap().trashed.clear();
+    state.0.lock().unwrap_or_else(|e| e.into_inner()).trashed.clear();
     Ok(count)
 }
 
@@ -3084,7 +3261,14 @@ pub fn run() {
         .manage(ScanState(Mutex::new(ScanData::default())))
         .manage(Cancel::default())
         .manage(LicenceState::new())
+        .manage(portable::PendingOpen::default())
         .setup(|app| {
+            // A `.skimrr` double-clicked while Skimrr was not running arrives here, as an
+            // argument. It is put aside rather than opened: the interface has not been
+            // built yet, and an encrypted project needs a password anyway.
+            if let Some(path) = portable::from_argv() {
+                *app.state::<portable::PendingOpen>().0.lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
+            }
             // Silent, once per launch, and only when the receipt is old enough.
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -3119,10 +3303,24 @@ pub fn run() {
             app_version,
             license::licence_status,
             license::activate_licence,
-            license::deactivate_licence
+            license::deactivate_licence,
+            portable::export_estimate,
+            portable::export_project,
+            portable::peek_project,
+            portable::import_project,
+            portable::take_pending_project
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        // Built and run in two steps rather than one so the run loop can be watched:
+        // macOS delivers a double-clicked file to an application that is *already*
+        // running through this event, and nothing else would ever go looking for it.
+        .run(|_app, _event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &_event {
+                portable::opened_urls(_app, urls);
+            }
+        });
 }
 
 /// What the two caches weigh, so the settings panel can say it rather than guess.
@@ -3455,6 +3653,228 @@ mod tests {
         assert!(dist <= 4, "distance {dist} too large");
     }
 
+    /// Splits `compute_view` into its parts, because "three seconds" is not a finding
+    /// until you know which second is which.
+    #[test]
+    #[ignore = "timing, run explicitly with --ignored --release"]
+    fn bench_regroup_phases() {
+        use rayon::prelude::*;
+        use std::time::Instant;
+
+        fn next(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+        let mut state = 0xABCDEF0123456789u64;
+        let n = 50_000usize;
+        let hashes: Vec<Option<u128>> = (0..n)
+            .map(|i| {
+                Some(if i % 10 == 0 && i > 0 {
+                    0u128
+                } else {
+                    ((next(&mut state) as u128) << 64) | next(&mut state) as u128
+                })
+            })
+            .collect();
+        let paths: Vec<String> = (0..n)
+            .map(|i| format!("/Users/someone/Pictures/2024/{:02}/IMG_{:05}.HEIC", i % 12, i))
+            .collect();
+        let threshold = 28u32;
+
+        // (a) exactly the shape in `compute_view`: rayon entered once per seed
+        let started = Instant::now();
+        let mut taken = vec![false; n];
+        let mut pairs = 0usize;
+        for i in 0..n {
+            let Some(seed) = hashes[i] else { continue };
+            if taken[i] { continue; }
+            let members: Vec<usize> = (i + 1..n)
+                .into_par_iter()
+                .filter(|&j| !taken[j] && hashes[j].is_some_and(|h| (seed ^ h).count_ones() <= threshold))
+                .collect();
+            for j in members { taken[j] = true; pairs += 1; }
+            taken[i] = true;
+        }
+        let per_seed_parallel = started.elapsed();
+
+        // (b) the same scan with no rayon at all
+        let started = Instant::now();
+        let mut taken = vec![false; n];
+        let mut pairs_b = 0usize;
+        for i in 0..n {
+            let Some(seed) = hashes[i] else { continue };
+            if taken[i] { continue; }
+            let members: Vec<usize> = (i + 1..n)
+                .filter(|&j| !taken[j] && hashes[j].is_some_and(|h| (seed ^ h).count_ones() <= threshold))
+                .collect();
+            for j in members { taken[j] = true; pairs_b += 1; }
+            taken[i] = true;
+        }
+        let serial = started.elapsed();
+
+        // (c) rayon only while the remaining range is worth splitting
+        let started = Instant::now();
+        let mut taken = vec![false; n];
+        let mut pairs_c = 0usize;
+        for i in 0..n {
+            let Some(seed) = hashes[i] else { continue };
+            if taken[i] { continue; }
+            let hit = |j: &usize| !taken[*j] && hashes[*j].is_some_and(|h| (seed ^ h).count_ones() <= threshold);
+            let members: Vec<usize> = if n - i > 20_000 {
+                (i + 1..n).into_par_iter().filter(hit).collect()
+            } else {
+                (i + 1..n).filter(hit).collect()
+            };
+            for j in members { taken[j] = true; pairs_c += 1; }
+            taken[i] = true;
+        }
+        let hybrid = started.elapsed();
+
+        // (d) what the path bookkeeping costs on its own
+        let started = Instant::now();
+        let mut by_stem: HashMap<(PathBuf, String), Vec<usize>> = HashMap::new();
+        for (i, path) in paths.iter().enumerate() {
+            if let Some(key) = stem_key(Path::new(path)) {
+                by_stem.entry(key).or_default().push(i);
+            }
+        }
+        let stems = started.elapsed();
+
+        // (e) sequential, and without the per-seed Vec: union as we go
+        let started = Instant::now();
+        let mut taken = vec![false; n];
+        let mut parent: Vec<usize> = (0..n).collect();
+        let mut pairs_e = 0usize;
+        for i in 0..n {
+            let Some(seed) = hashes[i] else { continue };
+            if taken[i] { continue; }
+            for j in i + 1..n {
+                if taken[j] { continue; }
+                if hashes[j].is_some_and(|h| (seed ^ h).count_ones() <= threshold) {
+                    taken[j] = true;
+                    uf_union(&mut parent, i, j);
+                    pairs_e += 1;
+                }
+            }
+            taken[i] = true;
+        }
+        let inline = started.elapsed();
+
+        let ms = |d: std::time::Duration| d.as_secs_f64() * 1000.0;
+        eprintln!("BENCH phases n={n}  (pairs {pairs}/{pairs_b}/{pairs_c}/{pairs_e})");
+        eprintln!("  scan, sequentiel sans Vec {:>8.1} ms", ms(inline));
+        eprintln!("  scan, rayon par graine   {:>8.1} ms", ms(per_seed_parallel));
+        eprintln!("  scan, sequentiel          {:>8.1} ms", ms(serial));
+        eprintln!("  scan, hybride             {:>8.1} ms", ms(hybrid));
+        eprintln!("  indexation par racine     {:>8.1} ms", ms(stems));
+        eprintln!("  coeurs disponibles        {:>8}", rayon::current_num_threads());
+    }
+
+    /// The two façades must agree about the clustering, or the slider would quietly
+    /// show a different answer from the one a scan shows.
+    #[test]
+    fn groups_only_agrees_with_the_full_view() {
+        let records = vec![
+            record("/a/one.jpg", Some("aaa"), Some(0), 100),
+            record("/a/two.jpg", Some("aaa"), Some(0), 100),
+            record("/a/three.jpg", Some("bbb"), Some(0b1111), 200),
+            record("/a/far.jpg", Some("ccc"), Some(u128::MAX), 300),
+        ];
+        for threshold in [0u32, 4, 8, 28, 128] {
+            let full = compute_view(&records, threshold);
+            let lean = compute_groups(&records, threshold);
+            assert_eq!(
+                full.groups.iter().map(|g| (g.indices.clone(), g.suggested, g.kind)).collect::<Vec<_>>(),
+                lean.groups.iter().map(|g| (g.indices.clone(), g.suggested, g.kind)).collect::<Vec<_>>(),
+                "the groups must not depend on whether the photographs were asked for (threshold {threshold})"
+            );
+            assert_eq!(full.reclaimable_bytes, lean.reclaimable_bytes);
+            assert_eq!(full.total_files, lean.total_files);
+            assert_eq!(full.photos.len(), records.len());
+            assert!(lean.photos.is_empty(), "the lean view must carry no photographs");
+        }
+    }
+
+    /// Where the time actually goes when the similarity slider moves.
+    ///
+    /// The Hamming scan has been measured before (see `bktree.rs`) and is not the
+    /// suspect. This times the whole of `compute_view` against the two things it does
+    /// besides comparing hashes — cloning every photograph, and handing the result to
+    /// the webview as JSON — on a library the size of a real one.
+    #[test]
+    #[ignore = "timing, run explicitly with --ignored --release"]
+    fn bench_regroup_cost() {
+        use std::time::Instant;
+
+        fn next(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+        fn random_hash(state: &mut u64) -> u128 {
+            ((next(state) as u128) << 64) | next(state) as u128
+        }
+
+        let mut state = 0xABCDEF0123456789u64;
+        let n = 50_000;
+        // The same shape as the BK-tree benchmark: mostly unrelated singletons with a
+        // minority of tight clusters, because that is what a real library looks like.
+        let mut records: Vec<Record> = Vec::with_capacity(n);
+        for i in 0..n {
+            let hash = if i % 10 == 0 && i > 0 {
+                // one in ten is a near-copy of its predecessor
+                records[i - 1].phash.unwrap() ^ (1u128 << (next(&mut state) % 128))
+            } else {
+                random_hash(&mut state)
+            };
+            let mut r = record(
+                &format!("/Users/someone/Pictures/2024/{:02}/IMG_{:05}.HEIC", i % 12, i),
+                Some(&format!("{i:064x}")),
+                Some(hash),
+                4_800_000 + i as u64,
+            );
+            r.photo.name = format!("IMG_{i:05}.HEIC");
+            r.photo.preview = format!("/Users/someone/Library/Caches/previews/{i:016x}.jpg");
+            r.photo.thumb = Some(format!("/Users/someone/Library/Caches/previews/{i:016x}-t.jpg"));
+            r.photo.device = Some("iPhone 13 Pro".into());
+            r.photo.blur = Some(80.0 + (i % 400) as f64);
+            records.push(r);
+        }
+
+        let started = Instant::now();
+        let view = compute_view(&records, 28);
+        let clustering = started.elapsed();
+
+        let started = Instant::now();
+        let json = serde_json::to_string(&view).unwrap();
+        let serialising = started.elapsed();
+
+        // What a slider move costs on its own: the photographs are identical either
+        // way, so every byte of them here is spent to say nothing new.
+        let photos_json = serde_json::to_string(&view.photos).unwrap();
+        let groups_json = serde_json::to_string(&view.groups).unwrap();
+
+        eprintln!("BENCH n={n}");
+        eprintln!("  compute_view      {:>8.1} ms", clustering.as_secs_f64() * 1000.0);
+        eprintln!("  serialise view    {:>8.1} ms", serialising.as_secs_f64() * 1000.0);
+        eprintln!("  payload total     {:>8.1} MB", json.len() as f64 / 1048576.0);
+        eprintln!("    of which photos {:>8.1} MB", photos_json.len() as f64 / 1048576.0);
+        eprintln!("    of which groups {:>8.1} MB", groups_json.len() as f64 / 1048576.0);
+        eprintln!("  groups found      {:>8}", view.groups.len());
+
+        // And the path a slider move actually takes now.
+        let started = Instant::now();
+        let lean = compute_groups(&records, 28);
+        let lean_time = started.elapsed();
+        let lean_json = serde_json::to_string(&lean).unwrap();
+        eprintln!("  -- slider move --");
+        eprintln!("  compute_groups    {:>8.1} ms", lean_time.as_secs_f64() * 1000.0);
+        eprintln!("  payload           {:>8.2} MB", lean_json.len() as f64 / 1048576.0);
+    }
+
     fn record(path: &str, sha: Option<&str>, phash: Option<u128>, size: u64) -> Record {
         Record {
             photo: Photo {
@@ -3465,9 +3885,12 @@ mod tests {
                 height: 100,
                 taken: 0,
                 blur: None,
+                measurements: badshot::Measurements::default(),
+                bad_shot: badshot::BadShot::default(),
                 preview: path.into(),
                 thumb: None,
                 library: false,
+                missing: false,
                 preview_dims: None,
                 lat: None,
                 lon: None,
@@ -4676,9 +5099,12 @@ mod tests {
                 height: 3,
                 taken: 1,
                 blur: Some(900.0),
+                measurements: badshot::Measurements::default(),
+                bad_shot: badshot::BadShot::default(),
                 preview: path.into(),
                 thumb: None,
                 library: false,
+                missing: false,
                 preview_dims: None,
                 lat: None,
                 lon: None,
@@ -5086,3 +5512,4 @@ mod video_tests {
 pub fn debug_largest_jpeg(data: &[u8]) -> Option<usize> {
     largest_embedded_jpeg(data).map(|b| b.len())
 }
+
