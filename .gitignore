@@ -31,3 +31,6 @@ dist-ssr
 # une ressource embarquée, voir tauri.conf.json).
 src-tauri/models/dinov2_small.safetensors
 src-tauri/models/mobilenetv4_small.safetensors
+
+# Cargo build output for the format crates.
+crates/*/target/
