@@ -524,18 +524,14 @@ pub fn face_sharpness(gray: &GrayImage, faces: &[Face]) -> Option<f64> {
 /// global soft + no face + an island of sharpness -> keep, probably deliberate
 /// global soft + no face + uniformly soft         -> blur
 /// ```
-pub fn blur_verdict(
-    global: Option<f64>,
-    threshold: f64,
-    face_threshold: f64,
-    m: &Measurements,
-) -> Option<f32> {
+pub fn blur_verdict(global: Option<f64>, cuts: Cuts, m: &Measurements) -> Option<f32> {
     let global = global?;
-    if threshold <= 0.0 || global >= threshold {
+    if cuts.blur <= 0.0 || global >= cuts.blur {
         return None;
     }
-    // How far under the cut it sits, as the raw severity before any rescue.
-    let severity = ((threshold - global) / threshold).clamp(0.0, 1.0) as f32;
+    // How soft it is, against the folder's middle rather than against the cut it just
+    // crossed — see `Cuts` for why that distinction is the whole point.
+    let severity = Cuts::severity(cuts.blur, cuts.blur_median, global);
 
     if let Some(face) = m.face_sharpness {
         /* Judged against faces, never against the frame. Measured on real photographs,
@@ -545,10 +541,10 @@ pub fn blur_verdict(
            great deal. Comparing the two against one threshold marked every portrait
            blurred, which is the exact failure this feature exists to avoid. So faces
            get their own cut, drawn from the folder's own faces. */
-        if face_threshold <= 0.0 || face >= face_threshold {
+        if cuts.face <= 0.0 || face >= cuts.face {
             return None;
         }
-        let face_severity = ((face_threshold - face) / face_threshold).clamp(0.0, 1.0) as f32;
+        let face_severity = Cuts::severity(cuts.face, cuts.face_median, face);
         return Some(severity.max(face_severity).min(1.0));
     }
 
@@ -564,14 +560,43 @@ pub fn blur_verdict(
 }
 
 /// Assembles the verdict a photograph gets inside a particular folder.
-pub fn verdict(
-    global_sharpness: Option<f64>,
-    threshold: f64,
-    face_threshold: f64,
-    m: &Measurements,
-) -> BadShot {
+/// Where each judgement cuts, and what it measures severity against.
+///
+/// Two different numbers on purpose, and conflating them was a real defect. The cut is a
+/// percentile of the folder, so by construction it sits just above the folder's minimum:
+/// measuring "how far below the cut" *against the cut itself* yields a few percent even
+/// for the softest frame there is. Measured on a real folder — 31 photographs, softest
+/// 0.24, cut 0.26, median 1.20 — the severity came out at 0.077 while `REPORT` asks for
+/// 0.5. The category could not fire, on any folder, ever.
+///
+/// Severity is now measured against the median, a scale a genuinely soft frame can
+/// actually travel: the same photograph scores 0.80. The cut still decides *whether* to
+/// look; the median decides *how bad* it is.
+#[derive(Debug, Clone, Copy)]
+pub struct Cuts {
+    /// Below this, a frame is a candidate. A low percentile of the folder's own readings.
+    pub blur: f64,
+    /// What severity is measured against. The folder's median.
+    pub blur_median: f64,
+    /// The same pair again, drawn from the folder's faces rather than its frames.
+    pub face: f64,
+    pub face_median: f64,
+}
+
+impl Cuts {
+    /// Severity relative to a scale, falling back to the cut when no scale is known.
+    fn severity(cut: f64, scale: f64, value: f64) -> f32 {
+        let scale = if scale > value { scale } else { cut };
+        if scale <= 0.0 {
+            return 0.0;
+        }
+        (((scale - value) / scale).clamp(0.0, 1.0)) as f32
+    }
+}
+
+pub fn verdict(global_sharpness: Option<f64>, cuts: Cuts, m: &Measurements) -> BadShot {
     BadShot {
-        blur: blur_verdict(global_sharpness, threshold, face_threshold, m),
+        blur: blur_verdict(global_sharpness, cuts, m),
         closed_eyes: m.closed_eyes,
         underexposed: m.underexposed,
         overexposed: m.overexposed,
@@ -884,10 +909,45 @@ mod tests {
         }
     }
 
+    /// Cuts where the scale equals the cut — the shape these tests were written
+    /// against, kept so their assertions still mean what they meant.
+    fn cuts(blur: f64, face: f64) -> Cuts {
+        Cuts { blur, blur_median: blur, face, face_median: face }
+    }
+
+    /// The defect these `Cuts` exist to fix, reproduced from the real numbers.
+    ///
+    /// A curated folder of 31 photographs: softest 0.24, fifth percentile 0.26, median
+    /// 1.20. Two of them were deliberately soft. Under the old arithmetic the verdict
+    /// came back at 0.077 against a reporting bar of 0.5, so the Bad Shot tab said
+    /// "nothing here looks like a bad shot" — and would have said it on every folder,
+    /// because a percentile cut always sits just above its own minimum.
+    #[test]
+    fn a_soft_frame_clears_the_reporting_bar_on_a_real_distribution() {
+        let m = Measurements { soft_share: Some(0.95), ..Default::default() };
+        let real = Cuts { blur: 0.26, blur_median: 1.20, face: 0.0, face_median: 0.0 };
+
+        let v = blur_verdict(Some(0.24), real, &m);
+        assert!(
+            v.is_some_and(|c| c >= REPORT),
+            "the softest photograph of the folder must be reported, got {v:?}"
+        );
+
+        // And the old arithmetic, kept here as the thing that must never come back.
+        let conflated = Cuts { blur: 0.26, blur_median: 0.26, face: 0.0, face_median: 0.0 };
+        assert!(
+            blur_verdict(Some(0.24), conflated, &m).is_some_and(|c| c < REPORT),
+            "measuring severity against the cut is what made the category silent"
+        );
+
+        // A frame just above the cut is still not a candidate: the gate has not moved.
+        assert_eq!(blur_verdict(Some(0.27), real, &m), None);
+    }
+
     #[test]
     fn a_sharp_frame_is_never_called_blurred() {
         let m = measurements(None, Some(0.9));
-        assert_eq!(blur_verdict(Some(5.0), 1.0, 1.0, &m), None);
+        assert_eq!(blur_verdict(Some(5.0), cuts(1.0, 1.0), &m), None);
     }
 
     /// The headline case: a portrait at a wide aperture is soft nearly everywhere and
@@ -896,7 +956,7 @@ mod tests {
     fn a_sharp_face_rescues_a_soft_frame() {
         let m = measurements(Some(0.9), Some(0.95));
         assert_eq!(
-            blur_verdict(Some(0.4), 1.0, 0.8, &m),
+            blur_verdict(Some(0.4), cuts(1.0, 0.8), &m),
             None,
             "the subject is in focus, the background is meant to be soft"
         );
@@ -907,7 +967,7 @@ mod tests {
     #[test]
     fn a_soft_face_in_a_soft_frame_is_a_bad_shot() {
         let m = measurements(Some(0.2), Some(0.95));
-        let v = blur_verdict(Some(0.4), 1.0, 0.8, &m);
+        let v = blur_verdict(Some(0.4), cuts(1.0, 0.8), &m);
         assert!(v.is_some_and(|c| c >= REPORT), "got {v:?}");
     }
 
@@ -916,13 +976,13 @@ mod tests {
     #[test]
     fn an_island_of_sharpness_rescues_a_faceless_frame() {
         let m = measurements(None, Some(0.4));
-        assert_eq!(blur_verdict(Some(0.4), 1.0, 1.0, &m), None);
+        assert_eq!(blur_verdict(Some(0.4), cuts(1.0, 1.0), &m), None);
     }
 
     #[test]
     fn a_uniformly_soft_faceless_frame_is_a_bad_shot() {
         let m = measurements(None, Some(0.98));
-        let v = blur_verdict(Some(0.2), 1.0, 1.0, &m);
+        let v = blur_verdict(Some(0.2), cuts(1.0, 1.0), &m);
         assert!(v.is_some_and(|c| c >= REPORT), "got {v:?}");
     }
 
@@ -933,12 +993,12 @@ mod tests {
     fn a_face_is_judged_against_the_face_threshold_not_the_frame_one() {
         let m = measurements(Some(0.5), Some(0.95));
         assert_eq!(
-            blur_verdict(Some(0.9), 3.0, 0.4, &m),
+            blur_verdict(Some(0.9), cuts(3.0, 0.4), &m),
             None,
             "0.5 is a sharp face even though it is far under the frame's cut"
         );
         assert!(
-            blur_verdict(Some(0.9), 3.0, 0.9, &m).is_some(),
+            blur_verdict(Some(0.9), cuts(3.0, 0.9), &m).is_some(),
             "the same reading is soft once the folder's faces are sharper"
         );
     }
@@ -1058,7 +1118,7 @@ mod tests {
             faces_closed: Some(1),
             ..Default::default()
         };
-        let v = verdict(Some(0.2), 1.0, 1.0, &m);
+        let v = verdict(Some(0.2), cuts(1.0, 1.0), &m);
         assert!(v.blur.is_some() && v.closed_eyes.is_some() && v.underexposed.is_some());
         assert_eq!(v.overexposed, None, "what was not found stays absent");
         assert!(v.any());
@@ -1066,7 +1126,7 @@ mod tests {
 
     #[test]
     fn a_clean_photo_reports_nothing() {
-        let v = verdict(Some(5.0), 1.0, 1.0, &Measurements::default());
+        let v = verdict(Some(5.0), cuts(1.0, 1.0), &Measurements::default());
         assert!(!v.any());
         assert_eq!(v, BadShot { blur: None, ..BadShot::default() });
     }

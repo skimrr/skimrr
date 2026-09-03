@@ -1980,20 +1980,27 @@ fn build_view(records: &[Record], threshold: u32, with_photos: bool) -> View {
     // Both cuts exist only to fill in each photograph's verdict, so when the caller is
     // not asking for the photographs there is nothing to sort and nothing to clone.
     let photos = if with_photos {
-        let blur_cut = percentile(records.iter().filter_map(|r| r.photo.blur).collect(), 0.05);
-        let face_cut = percentile(
-            records
-                .iter()
-                .filter_map(|r| r.photo.measurements.face_sharpness)
-                .collect(),
-            0.05,
-        );
+        // Two readings from each distribution, not one: the fifth percentile decides
+        // which frames are even candidates, the median gives severity a scale it can
+        // travel. Taking both from the cut alone made every verdict a few percent and
+        // the category silent — see `badshot::Cuts`.
+        let blur: Vec<f64> = records.iter().filter_map(|r| r.photo.blur).collect();
+        let faces: Vec<f64> = records
+            .iter()
+            .filter_map(|r| r.photo.measurements.face_sharpness)
+            .collect();
+        let cuts = badshot::Cuts {
+            blur: percentile(blur.clone(), 0.05),
+            blur_median: percentile(blur, 0.5),
+            face: percentile(faces.clone(), 0.05),
+            face_median: percentile(faces, 0.5),
+        };
         records
             .iter()
             .map(|r| {
                 let mut photo = r.photo.clone();
                 photo.bad_shot =
-                    badshot::verdict(photo.blur, blur_cut, face_cut, &photo.measurements);
+                    badshot::verdict(photo.blur, cuts, &photo.measurements);
                 photo
             })
             .collect()
