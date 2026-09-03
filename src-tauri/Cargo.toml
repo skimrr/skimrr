@@ -1,6 +1,6 @@
 [package]
 name = "skimrr"
-version = "0.3.1"
+version = "0.4.0"
 description = "Local-only photo cleanup: duplicates and blurry shots"
 edition = "2021"
 
