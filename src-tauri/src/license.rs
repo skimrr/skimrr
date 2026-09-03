@@ -14,7 +14,7 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 /// Replace with your own deployment. This is the only address the app ever calls.
 const LICENSE_ENDPOINT: &str = "https://license.skimrr.com";
@@ -96,6 +96,57 @@ fn now() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+/// What this machine already is, as far as the licence server is concerned.
+///
+/// Kept in a plain file rather than in the keychain, and that separation is the whole
+/// point. The keychain holds the receipt, which is a secret. These two are not: an
+/// instance id is an opaque handle Lemon Squeezy issued and already knows.
+///
+/// A keychain item is bound to the application's code signature, so changing the
+/// signing certificate loses it — and so does a reinstall, a new user account, or a
+/// keychain reset. When that happened the app had no way to recognise a machine it had
+/// already activated, so re-entering the key called `/activate` and Lemon Squeezy
+/// issued a *new* instance, consuming one of the three seats. Every time. Three such
+/// events and someone who paid is locked out of their own licence, on one computer.
+///
+/// Keeping the identity outside the keychain means a lost receipt costs the user one
+/// retyped key and nothing else.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+struct DeviceIdentity {
+    #[serde(default)]
+    device_id: String,
+    /// The instance Lemon Squeezy issued for this machine, if it ever issued one.
+    #[serde(default)]
+    instance_id: String,
+}
+
+fn identity_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    let dir = app.path().app_data_dir().ok()?;
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("device.json"))
+}
+
+fn load_identity(app: &AppHandle) -> DeviceIdentity {
+    identity_path(app)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn save_identity(app: &AppHandle, identity: &DeviceIdentity) {
+    if let Some(path) = identity_path(app) {
+        if let Ok(raw) = serde_json::to_string(identity) {
+            let _ = std::fs::write(path, raw);
+        }
+    }
+}
+
+fn clear_identity(app: &AppHandle) {
+    if let Some(path) = identity_path(app) {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 fn entry() -> Result<keyring::Entry, String> {
@@ -284,6 +335,7 @@ pub fn licence_status(state: State<LicenceState>) -> LicenceInfo {
 
 #[tauri::command]
 pub async fn activate_licence(
+    app: AppHandle,
     state: State<'_, LicenceState>,
     key: String,
 ) -> Result<LicenceInfo, String> {
@@ -291,7 +343,45 @@ pub async fn activate_licence(
     if key.is_empty() {
         return Ok(LicenceInfo::inactive(Some("empty_key".into())));
     }
-    let device_id = uuid::Uuid::new_v4().to_string();
+
+    /* If this machine already holds a seat, take it back rather than a second one.
+       `/validate` confirms an existing instance without consuming an activation;
+       `/activate` always issues a new one. Anything that lost the receipt — a new
+       signing certificate, a reinstall, a keychain reset — used to land here and quietly
+       spend a seat the user had already paid for. */
+    let known = load_identity(&app);
+    if !known.instance_id.is_empty() {
+        if let WorkerReply::Receipt(token) = call_worker(
+            "/validate",
+            serde_json::json!({
+                "license_key": key,
+                "instance_id": known.instance_id,
+            }),
+        )
+        .await
+        {
+            if let Ok(receipt) = verify(&token) {
+                let licence = StoredLicence {
+                    token,
+                    license_key: key,
+                    device_id: known.device_id.clone(),
+                };
+                save_to_keychain(&licence)?;
+                *state.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(licence);
+                return Ok(info_from(&receipt));
+            }
+        }
+        /* Falling through is correct and expected: a different key, or an instance the
+           server no longer recognises, cannot be revalidated and must be activated. */
+    }
+
+    // Random, and deliberately not derived from the hardware — it says nothing about
+    // the machine. Persisted below so it is generated once and not once per activation.
+    let device_id = if known.device_id.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        known.device_id
+    };
 
     let reply = call_worker(
         "/activate",
@@ -311,6 +401,15 @@ pub async fn activate_licence(
                 device_id,
             };
             save_to_keychain(&licence)?;
+            // Remembered outside the keychain, so the next activation can reclaim this
+            // seat instead of buying another.
+            save_identity(
+                &app,
+                &DeviceIdentity {
+                    device_id: licence.device_id.clone(),
+                    instance_id: receipt.instance_id.clone(),
+                },
+            );
             *state.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(licence);
             Ok(info_from(&receipt))
         }
@@ -326,7 +425,10 @@ pub async fn activate_licence(
 }
 
 #[tauri::command]
-pub async fn deactivate_licence(state: State<'_, LicenceState>) -> Result<LicenceInfo, String> {
+pub async fn deactivate_licence(
+    app: AppHandle,
+    state: State<'_, LicenceState>,
+) -> Result<LicenceInfo, String> {
     let stored = { state.0.lock().unwrap_or_else(|e| e.into_inner()).clone() };
     if let Some(licence) = stored {
         if let Ok(receipt) = verify(&licence.token) {
@@ -341,18 +443,37 @@ pub async fn deactivate_licence(state: State<'_, LicenceState>) -> Result<Licenc
         }
     }
     clear_keychain();
+    // The seat has been given back, so the instance behind it is gone: keeping the id
+    // would make the next activation try to revalidate something that no longer exists.
+    clear_identity(&app);
     *state.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Ok(LicenceInfo::inactive(None))
 }
 
 /// Background refresh, run once at startup. Silent by design: it never interrupts,
 /// and it only ever gives up the licence on an explicit refusal.
-pub async fn revalidate_if_due(state: &LicenceState) {
+pub async fn revalidate_if_due(app: &AppHandle, state: &LicenceState) {
     let stored = { state.0.lock().unwrap_or_else(|e| e.into_inner()).clone() };
     let Some(licence) = stored else { return };
     let Ok(receipt) = verify(&licence.token) else {
         return;
     };
+
+    /* Anyone who activated before the identity file existed has a valid seat and no
+       record of it, so the first keychain loss would still cost them one. Writing it
+       here, from a receipt that has just been verified, repairs those installations
+       silently on the next launch. Before the refresh check on purpose: the repair is
+       needed whether or not the receipt is due. */
+    if load_identity(app).instance_id.is_empty() {
+        save_identity(
+            app,
+            &DeviceIdentity {
+                device_id: licence.device_id.clone(),
+                instance_id: receipt.instance_id.clone(),
+            },
+        );
+    }
+
     if now() < receipt.refresh_after {
         return;
     }

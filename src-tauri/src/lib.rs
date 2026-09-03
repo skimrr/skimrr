@@ -3273,7 +3273,7 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<LicenceState>();
-                license::revalidate_if_due(&state).await;
+                license::revalidate_if_due(&handle, &state).await;
             });
             Ok(())
         })
