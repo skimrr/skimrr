@@ -64,8 +64,15 @@ export function CompareView({
     for (const position of shown) {
       const photo = photos[position];
       if (!photo || details[photo.path]) continue;
+      /* Les deux chemins finissent par `detail_preview`, et c'est le point : Photos rend
+         l'original tel qu'il a été pris, donc souvent un .ARW ou un .HEIC que le moteur
+         de rendu ne sait pas afficher. Le pointer directement dans une <img> donnait un
+         volet vide. `detail_preview` rend le fichier tel quel s'il est affichable, et en
+         construit un JPEG sinon, ce qu'il fait déjà pour les raw du disque. */
       (photo.library
-      ? invoke<string>("library_original", { path: photo.path, thumb: false })
+      ? invoke<string>("library_original", { path: photo.path, thumb: false }).then(
+          (original) => invoke<string>("detail_preview", { path: original }),
+        )
       : invoke<string>("detail_preview", { path: photo.path }))
         .then((detail) => {
           if (!cancelled && detail) {
