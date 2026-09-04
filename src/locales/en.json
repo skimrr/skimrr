@@ -204,7 +204,9 @@
     "keep": "Keep this one",
     "hint": "Zoom moves every pane at once. Arrows to move, Enter to keep.",
     "hintPlain": "Zoom moves every pane at once. Arrows to move.",
-    "open": "Compare"
+    "open": "Compare",
+    "reduced": "Showing the library's small copy. Photos would not hand over the original.",
+    "unavailable": "This picture could not be loaded."
   },
   "days": {
     "tab": "Gallery",

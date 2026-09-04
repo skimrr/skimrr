@@ -3126,6 +3126,25 @@ fn delete_from_photos(
 ///
 /// On demand only, never during a scan: it downloads from iCloud, it needs permission
 /// to control Photos, and it takes seconds. Exported once, then reused from the cache.
+/// The exported original inside a per-asset folder, ignoring the reduced rendition that
+/// sits beside it.
+///
+/// Written as one search rather than "take the first file, then reject it if it is the
+/// thumbnail", which is what this used to be and which failed whenever the directory
+/// happened to hand back `thumb.jpg` first: the original was right there and the caller
+/// was told there was nothing. Comparing two photographs then fell back to the small
+/// library derivative — the exact stand-in the full-size fetch exists to replace — and a
+/// second export was attempted into a folder that already held the file.
+///
+/// Directory order is not something to have an opinion about; it is something not to
+/// depend on.
+fn original_beside(dir: &Path, reduced: &Path) -> Option<String> {
+    std::fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
+        let path = entry.path();
+        (path.is_file() && path != reduced).then(|| path.to_string_lossy().into_owned())
+    })
+}
+
 #[cfg(target_os = "macos")]
 #[tauri::command]
 async fn library_original(app: AppHandle, path: String, thumb: bool) -> Result<String, String> {
@@ -3150,14 +3169,8 @@ async fn library_original(app: AppHandle, path: String, thumb: bool) -> Result<S
             .join("originals")
             .join(&uuid);
         // Photos names the export after the asset's own original filename, which this
-        // side does not know in advance — so the per-UUID folder is read back rather
+        // side does not know in advance, so the per-UUID folder is read back rather
         // than a filename being predicted.
-        let first_file = |dir: &Path| -> Option<String> {
-            std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
-                let p = e.path();
-                p.is_file().then(|| p.to_string_lossy().into_owned())
-            })
-        };
         /* A grid cell wants a grid-sized picture. Pointing an `<img>` at the eleven
            megabytes of an original would have the webview decode a sixteen megapixel
            frame into a thumbnail slot, once per card on screen — so the reduced
@@ -3167,7 +3180,7 @@ async fn library_original(app: AppHandle, path: String, thumb: bool) -> Result<S
             if thumb {
                 return reduced.exists().then(|| reduced.to_string_lossy().into_owned());
             }
-            first_file(dir).filter(|p| Path::new(p) != reduced)
+            original_beside(dir, &reduced)
         };
         if let Some(existing) = wanted(&dir) {
             return Ok(existing);
@@ -3187,8 +3200,7 @@ async fn library_original(app: AppHandle, path: String, thumb: bool) -> Result<S
             let _ = std::fs::remove_dir(&dir);
             return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
         }
-        let original = first_file(&dir)
-            .filter(|p| Path::new(p) != reduced)
+        let original = original_beside(&dir, &reduced)
             .ok_or_else(|| "Photos exported nothing".to_string())?;
         if !thumb {
             return Ok(original);
@@ -3880,6 +3892,41 @@ mod tests {
         eprintln!("  -- slider move --");
         eprintln!("  compute_groups    {:>8.1} ms", lean_time.as_secs_f64() * 1000.0);
         eprintln!("  payload           {:>8.2} MB", lean_json.len() as f64 / 1048576.0);
+    }
+
+    /// The bug that made a Photos-library picture blank in the comparison view.
+    ///
+    /// Once the grid has fetched an asset, its folder holds both the exported original
+    /// and the `thumb.jpg` built from it. Asking for the original then had to skip the
+    /// thumbnail — and the old code took the first file and *then* rejected it, so a
+    /// directory that handed back `thumb.jpg` first reported nothing at all.
+    #[test]
+    fn the_original_is_found_whichever_file_the_directory_hands_back_first() {
+        let dir = std::env::temp_dir().join(format!("skimrr-orig-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let reduced = dir.join("thumb.jpg");
+
+        // Nothing exported yet: the thumbnail alone is not an original.
+        std::fs::write(&reduced, b"thumb").unwrap();
+        assert_eq!(original_beside(&dir, &reduced), None);
+
+        // The export lands beside it, and must be found however the directory is walked.
+        let original = dir.join("IMG_0001.HEIC");
+        std::fs::write(&original, b"original").unwrap();
+        assert_eq!(
+            original_beside(&dir, &reduced).map(std::path::PathBuf::from),
+            Some(original.clone()),
+            "the original sits right there; order must not hide it"
+        );
+
+        // And the thumbnail is never mistaken for it, even alphabetically first.
+        let earlier = dir.join("AAA.jpg");
+        std::fs::write(&earlier, b"another").unwrap();
+        let found = original_beside(&dir, &reduced).unwrap();
+        assert_ne!(std::path::Path::new(&found), reduced);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn record(path: &str, sha: Option<&str>, phash: Option<u128>, size: u64) -> Record {

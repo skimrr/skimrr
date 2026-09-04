@@ -95,13 +95,12 @@ export async function loadSkimrr(wasm) {
         ),
       ),
 
-    /** One thumbnail, as raw bytes. */
-    blob: (file, password, index) =>
-      withBytes(file, (ptr, len) =>
-        withPassword(password, (pw, pwLen) =>
-          takeBytes(wasmExports.sk_blob(ptr, len, pw, pwLen, index)),
-        ),
-      ),
+    /** One thumbnail from the container already open, as raw bytes. Empty if there is
+        no such blob. Costs a copy, not a key derivation. */
+    blob: (index) => takeBytes(wasmExports.sk_blob(index)),
+
+    /** Drops the open container and the decrypted project inside it. */
+    forget: () => wasmExports.sk_forget(),
 
     /** Milliseconds for one key derivation at the given cost, measured here. */
     benchArgon2(mKib, t, p) {

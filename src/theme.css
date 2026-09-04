@@ -1452,7 +1452,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .pane.focused { outline-color: var(--muted); }
 .pane.keep { outline-color: var(--accent); }
-.pane-stage { overflow: hidden; display: grid; place-items: center; min-height: 0; }
+.pane-stage { position: relative; overflow: hidden; display: grid; place-items: center; min-height: 0; }
 .pane-stage img {
   max-width: 100%;
   max-height: 100%;
@@ -1783,3 +1783,21 @@ input[type="range"]::-moz-range-thumb {
 .project-mode-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
 .project-mode-icon svg { width: 1.05rem; height: 1.05rem; }
 .project-mode-row:hover .project-mode-icon { color: var(--ink); border-color: var(--muted); }
+/* Le détail technique sous la phrase : lisible sans crier, et sélectionnable pour être
+   collé dans un rapport de bug. */
+.error-detail { display: block; margin-top: 0.3rem; font-size: 0.78rem; opacity: 0.85; user-select: text; }
+/* Un volet qui ne montre pas ce qu'il prétend montrer doit le dire. Posé sur l'image
+   plutôt qu'à côté : c'est cette vignette-là qui est en cause, pas la comparaison. */
+.pane-warn {
+  position: absolute;
+  left: 0.6rem;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--danger) 92%, black);
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: left;
+}

@@ -823,6 +823,68 @@ mod round_trip_tests {
         }
     }
 
+    /// Reproduces a real export from the real scan cache, to find out what a failing
+    /// one actually says. Ignored by default: it needs a cache on this machine.
+    #[test]
+    #[ignore = "needs a local scan cache"]
+    fn export_the_screenshot_folder() {
+        let cache = dirs_cache().join("scans/cache.json");
+        // Typé plutôt que via `serde_json::Value` : le `phash` est un u128, et un Value
+        // le rabat sur un f64 qui perd les bits de poids faible.
+        #[derive(serde::Deserialize)]
+        struct Cached { record: Record }
+        #[derive(serde::Deserialize)]
+        struct Cache { files: std::collections::BTreeMap<String, Cached> }
+
+        let raw = std::fs::read_to_string(&cache).expect("no scan cache");
+        let parsed: Cache = serde_json::from_str(&raw).unwrap();
+        let records: Vec<Record> = parsed
+            .files
+            .into_iter()
+            .filter(|(path, _)| path.contains("shot-photos"))
+            .map(|(_, c)| c.record)
+            .collect();
+        eprintln!("records: {}", records.len());
+        assert!(!records.is_empty());
+
+        let roots = vec!["/Users/baptiste/Fichiers/Skimrr/tools/shot-photos".to_string()];
+        for mode in [Mode::Project, Mode::Thumbnails] {
+            let a = assemble(&records, &roots, 28, mode, "shot-photos");
+            eprintln!(
+                "{mode:?}: photos={} blobs={} skipped={:?} groups={}",
+                a.photos,
+                a.blobs.len(),
+                a.skipped,
+                a.project.groups.len()
+            );
+            match fmt::write(&a.project, &a.blobs, mode.contents(), None, fmt::Profile::Strong) {
+                Ok(bytes) => {
+                    eprintln!("  wrote {} bytes", bytes.len());
+                    if let Ok(out) = std::env::var("SKIMRR_EXPORT_TO") {
+                        if matches!(mode, Mode::Thumbnails) {
+                            std::fs::write(&out, &bytes).unwrap();
+                            eprintln!("  saved to {out}");
+                        }
+                    }
+                }
+                Err(e) => panic!("{mode:?} FAILED: {e}"),
+            }
+            // Et la même chose chiffrée, pour éprouver le mot de passe côté navigateur.
+            if matches!(mode, Mode::Thumbnails) {
+                if let Ok(out) = std::env::var("SKIMRR_EXPORT_LOCKED") {
+                    let bytes = fmt::write(&a.project, &a.blobs, mode.contents(),
+                                           Some("un mot de passe"), fmt::Profile::Strong).unwrap();
+                    std::fs::write(&out, &bytes).unwrap();
+                    eprintln!("  saved encrypted to {out}");
+                }
+            }
+        }
+    }
+
+    fn dirs_cache() -> PathBuf {
+        PathBuf::from(std::env::var("HOME").unwrap()).join("Library/Caches/com.skimrr.app")
+    }
+
     /// The whole journey: a scan on one machine becomes a file, and the file becomes a
     /// scan on another — where the photographs sit under a different folder and two of
     /// them have been renamed since.

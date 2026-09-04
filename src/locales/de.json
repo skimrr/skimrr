@@ -204,7 +204,9 @@
     "keep": "Diese behalten",
     "hint": "Der Zoom bewegt alle Ansichten zugleich. Pfeile zum Wechseln, Enter zum Behalten.",
     "hintPlain": "Der Zoom bewegt alle Ansichten zugleich. Pfeile zum Wechseln.",
-    "open": "Vergleichen"
+    "open": "Vergleichen",
+    "reduced": "Zeigt die kleine Kopie der Mediathek. Fotos hat das Original nicht herausgegeben.",
+    "unavailable": "Dieses Bild konnte nicht geladen werden."
   },
   "days": {
     "tab": "Galerie",

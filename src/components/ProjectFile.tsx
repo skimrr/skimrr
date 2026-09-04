@@ -332,7 +332,17 @@ export function ExportModal({
               </>
             )}
 
-            {error && <p className="error">{t("project.export.failed")}</p>}
+            {/* Le message du backend, pas un message générique. Il sait pourquoi — « aucune
+                de ces photos ne peut être exportée », « impossible d'écrire le fichier :
+                permission refusée » — et l'écraser par « le fichier n'a pas pu être
+                écrit » retire à la personne la seule information qui lui permettrait d'agir.
+                Ces messages sont écrits pour être lus, pas pour être avalés. */}
+            {error && (
+              <p className="error">
+                {t("project.export.failed")}
+                <span className="error-detail">{error}</span>
+              </p>
+            )}
 
             <div className="modal-actions">
               <button className="btn-quiet" onClick={onClose}>

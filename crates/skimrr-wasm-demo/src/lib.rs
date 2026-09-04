@@ -25,6 +25,22 @@
 
 use serde_json::json;
 use skimrr_format as fmt;
+use std::cell::RefCell;
+
+thread_local! {
+    /// The one container currently open.
+    ///
+    /// A viewer shows the project it has just opened and nothing else, so one slot is
+    /// enough — and keeping it is what makes a grid of thumbnails possible at all.
+    /// Without it every image would re-derive the key: Argon2id at 128 MiB is a quarter
+    /// of a second by design, so thirty thumbnails would have cost eight seconds of
+    /// deliberate work to decrypt bytes already decrypted once.
+    ///
+    /// The password is *not* kept here. It is used, wiped by the caller, and never
+    /// needed again; what stays is the plaintext the user asked to see, for as long as
+    /// they are looking at it. `sk_forget` drops it.
+    static OPEN: RefCell<Option<fmt::Opened>> = const { RefCell::new(None) };
+}
 
 /// A buffer for JavaScript to write a file into.
 ///
@@ -117,11 +133,10 @@ pub unsafe extern "C" fn sk_open(
 
     match fmt::read(bytes, password) {
         Ok(opened) => {
-            let project = opened.project;
+            let project = &opened.project;
             let entries: Vec<serde_json::Value> = project
                 .entries
                 .iter()
-                .take(2000)
                 .map(|e| {
                     json!({
                         "path": e.path,
@@ -130,20 +145,28 @@ pub unsafe extern "C" fn sk_open(
                         "blur": e.blur,
                         "kept": e.kept,
                         "thumbnail": e.thumbnail,
+                        "sha": e.sha,
                     })
                 })
                 .collect();
-            reply(json!({
+            let groups: Vec<serde_json::Value> = project
+                .groups
+                .iter()
+                .map(|g| json!({ "members": g.members, "suggested": g.suggested, "kind": g.kind }))
+                .collect();
+            let reply = reply(json!({
                 "ok": true,
                 "name": project.name,
                 "created": project.created,
                 "photos": project.entries.len(),
-                "groups": project.groups.len(),
+                "groups": groups,
                 "roots": project.roots,
                 "threshold": project.settings.similarity_threshold,
                 "entries": entries,
                 "blobs": opened.blobs.len(),
-            }))
+            }));
+            OPEN.with(|slot| *slot.borrow_mut() = Some(opened));
+            reply
         }
         // Including, and especially, the failures: a browser that opened a tampered file
         // anyway would be worse than one that could not open files at all.
@@ -151,38 +174,28 @@ pub unsafe extern "C" fn sk_open(
     }
 }
 
+/// Drops the open container, and with it the decrypted project.
+#[no_mangle]
+pub extern "C" fn sk_forget() {
+    OPEN.with(|slot| *slot.borrow_mut() = None);
+}
+
 /// Hands one blob back so the page can show a thumbnail.
 ///
-/// Returns `[u32 length][bytes]`, freed with `sk_free` like the others. The container has
-/// to be opened again to reach it — this demo keeps no state between calls, which costs a
-/// key derivation and buys not having a decrypted project sitting in memory between
-/// clicks.
-///
-/// # Safety
-/// As `sk_open`.
+/// Reads from the container already open, so it costs a memory copy rather than a key
+/// derivation. Returns `[u32 length][bytes]`, freed with `sk_free`; a length of zero
+/// means there is no such blob.
 #[no_mangle]
-pub unsafe extern "C" fn sk_blob(
-    ptr: *const u8,
-    len: usize,
-    pw_ptr: *const u8,
-    pw_len: usize,
-    index: u32,
-) -> *mut u8 {
-    let bytes = core::slice::from_raw_parts(ptr, len);
-    let password = if pw_ptr.is_null() || pw_len == 0 {
-        None
-    } else {
-        core::str::from_utf8(core::slice::from_raw_parts(pw_ptr, pw_len)).ok()
-    };
-    let Ok(opened) = fmt::read(bytes, password) else {
-        return reply(json!({ "ok": false }));
-    };
-    let Some(blob) = opened.blobs.get(index as usize) else {
-        return reply(json!({ "ok": false }));
-    };
-    let mut out = Vec::with_capacity(4 + blob.len());
-    out.extend_from_slice(&(blob.len() as u32).to_le_bytes());
-    out.extend_from_slice(blob);
+pub extern "C" fn sk_blob(index: u32) -> *mut u8 {
+    let bytes = OPEN.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .and_then(|o| o.blobs.get(index as usize).cloned())
+            .unwrap_or_default()
+    });
+    let mut out = Vec::with_capacity(4 + bytes.len());
+    out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+    out.extend_from_slice(&bytes);
     Box::into_raw(out.into_boxed_slice()) as *mut u8
 }
 

@@ -204,7 +204,9 @@
     "keep": "Conservar esta",
     "hint": "El zoom mueve todos los paneles a la vez. Flechas para moverte, Intro para conservar.",
     "hintPlain": "El zoom mueve todos los paneles a la vez. Flechas para moverte.",
-    "open": "Comparar"
+    "open": "Comparar",
+    "reduced": "Muestra la copia pequeña de la fototeca. Fotos no entregó el original.",
+    "unavailable": "No se pudo cargar esta imagen."
   },
   "days": {
     "tab": "Galería",

@@ -31,8 +31,8 @@ const opened = skimrr.open(plain, null);
 check("open returns the project", opened.ok, opened.ok ? `“${opened.name}”, ${opened.photos} photos` : opened.error);
 check("entries came across", opened.entries.length === opened.photos);
 check("paths are relative", opened.entries.every((e) => !e.path.startsWith("/")));
-check("groups came across", opened.groups === 1);
-const thumb = skimrr.blob(plain, null, 0);
+check("groups came across", opened.groups.length === 1 && opened.groups[0].members.length === 3);
+const thumb = skimrr.blob(0);
 check("a thumbnail can be read back", thumb.length === 4096, `${thumb.length} bytes`);
 
 // ---- an encrypted one

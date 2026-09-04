@@ -37,6 +37,14 @@ export function CompareView({
   const [focus, setFocus] = useState(0);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  /* Ce qui a échoué, par photo. Dans la grille, un échec silencieux est le bon choix :
+     une image plus petite vaut mieux qu'une image cassée. Ici c'est l'inverse. La
+     comparaison sert à juger deux copies l'une contre l'autre, et montrer sans le dire
+     la vignette réduite d'une photothèque à côté d'un original pleine taille fait
+     paraître la bonne copie moins bonne — exactement l'erreur que cette vue existe pour
+     éviter. Un échec doit donc se voir. */
+  const [reduced, setReduced] = useState<Record<string, true>>({});
+  const [broken, setBroken] = useState<Record<string, true>>({});
   const [details, setDetails] = useState<Record<string, string>>({});
   const dragging = useRef<{ x: number; y: number } | null>(null);
 
@@ -64,7 +72,11 @@ export function CompareView({
             setDetails((d) => ({ ...d, [photo.path]: detail }));
           }
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (!cancelled && photo.library) {
+            setReduced((r) => ({ ...r, [photo.path]: true }));
+          }
+        });
     }
     return () => {
       cancelled = true;
@@ -182,10 +194,16 @@ export function CompareView({
                   src={convertFileSrc(src)}
                   alt={photo.name}
                   draggable={false}
+                  onError={() => setBroken((b) => ({ ...b, [photo.path]: true }))}
                   style={{
                     transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
                   }}
                 />
+                {(broken[photo.path] || reduced[photo.path]) && (
+                  <span className="pane-warn">
+                    {t(broken[photo.path] ? "compare.unavailable" : "compare.reduced")}
+                  </span>
+                )}
               </span>
               <span className="pane-foot">
                 <span className="mono">{photo.name}</span>

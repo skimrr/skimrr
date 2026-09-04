@@ -204,7 +204,9 @@
     "keep": "Conserver celle-ci",
     "hint": "Le zoom déplace toutes les vues ensemble. Flèches pour circuler, Entrée pour conserver.",
     "hintPlain": "Le zoom déplace toutes les vues ensemble. Flèches pour circuler.",
-    "open": "Comparer"
+    "open": "Comparer",
+    "reduced": "Affiche la petite copie de la photothèque. Photos n'a pas donné l'original.",
+    "unavailable": "Cette image n'a pas pu être chargée."
   },
   "days": {
     "tab": "Galerie",
